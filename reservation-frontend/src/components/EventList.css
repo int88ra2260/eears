@@ -1,0 +1,287 @@
+/* EventList 組件專用樣式 */
+
+/* 圖片輪播容器樣式 */
+.image-carousel-container {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease;
+}
+
+.image-carousel-container:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* 圖片切換按鈕樣式 */
+.carousel-nav-btn {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: none !important;
+  color: #333 !important;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(4px);
+}
+
+.carousel-nav-btn:hover {
+  background: rgba(255, 255, 255, 1) !important;
+  transform: scale(1.1);
+  color: #007bff !important;
+}
+
+.carousel-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 圖片指示器樣式 */
+.carousel-indicator {
+  transition: all 0.3s ease;
+  border: 2px solid transparent !important;
+}
+
+.carousel-indicator:hover {
+  transform: scale(1.2);
+}
+
+.carousel-indicator.active {
+  background-color: #007bff !important;
+  border-color: #007bff !important;
+}
+
+/* 圖片過渡動畫 */
+.carousel-image {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.carousel-image.transitioning {
+  opacity: 0.7;
+  transform: scale(0.98);
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+  .image-carousel-container {
+    height: 300px !important;
+  }
+  
+  .carousel-nav-btn {
+    width: 35px !important;
+    height: 35px !important;
+  }
+  
+  .carousel-indicator {
+    width: 10px !important;
+    height: 10px !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .image-carousel-container {
+    height: 250px !important;
+  }
+  
+  .carousel-nav-btn {
+    width: 30px !important;
+    height: 30px !important;
+  }
+}
+
+/* 圖片載入動畫 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.carousel-image.loaded {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+/* 圖片計數器樣式 */
+.image-counter {
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  backdrop-filter: blur(4px);
+}
+
+/* 標籤頁內容區域 */
+.tab-content {
+  min-height: 500px;
+}
+
+/* 活動介紹模態視窗優化 */
+.modal-xl {
+  max-width: 1200px;
+}
+
+@media (max-width: 1200px) {
+  .modal-xl {
+    max-width: 95%;
+  }
+}
+
+/* 文字內容區域優化 */
+.activity-description {
+  line-height: 1.6;
+  text-align: justify;
+}
+
+.activity-description h6 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.activity-description p {
+  margin-bottom: 1rem;
+}
+
+/* FullCalendar RWD 優化 */
+.fc {
+  font-family: inherit;
+}
+
+/* 桌面版優化 */
+@media (min-width: 768px) {
+  .fc-daygrid-event {
+    border-radius: 4px;
+    padding: 2px 4px;
+    transition: all 0.2s ease;
+  }
+  
+  .fc-daygrid-event:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .fc-day-header {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    padding: 8px 4px;
+  }
+  
+  .fc-day {
+    transition: background-color 0.2s ease;
+  }
+  
+  .fc-day:hover {
+    background-color: #f8f9fa;
+  }
+}
+
+/* 行動裝置優化 */
+@media (max-width: 767px) {
+  .fc {
+    font-size: 0.9rem;
+  }
+  
+  .fc-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .fc-toolbar-title {
+    font-size: 1.2rem;
+  }
+  
+  .fc-button {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+  }
+  
+  .fc-list-event {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    background-color: white;
+    transition: all 0.2s ease;
+  }
+  
+  .fc-list-event:hover {
+    background-color: #f8f9fa;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transform: translateX(2px);
+  }
+  
+  .fc-list-event-title {
+    font-weight: 600;
+    color: #007bff;
+  }
+  
+  .fc-list-event-time {
+    font-size: 0.85rem;
+    color: #6c757d;
+  }
+  
+  .fc-daygrid-day-number {
+    padding: 4px;
+  }
+}
+
+/* 活動事件樣式 */
+.calendar-event {
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.calendar-event:hover {
+  opacity: 0.9;
+}
+
+/* 藍白學術風配色 */
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: #e0e7ff;
+}
+
+.fc-button-primary {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+.fc-button-primary:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
+}
+
+.fc-button-primary:disabled {
+  background-color: #6c757d;
+  border-color: #6c757d;
+}
+
+.fc-button-active {
+  background-color: #0056b3 !important;
+  border-color: #0056b3 !important;
+}
+
+/* 今天日期高亮 */
+.fc-day-today {
+  background-color: #e7f3ff !important;
+}
+
+/* 響應式調整 */
+@media (max-width: 576px) {
+  .fc-toolbar {
+    font-size: 0.8rem;
+  }
+  
+  .fc-button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  .fc-button {
+    flex: 1;
+    min-width: 60px;
+  }
+}

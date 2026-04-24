@@ -1,0 +1,444 @@
+{
+  "project": {
+    "name": "預約系統",
+    "description": "React 18 + Bootstrap 5 前端、Node.js/Express 後端、Sequelize + MySQL、JWT、Excel 匯出、Email 通知、統計圖表",
+    "version": "1.0.0"
+  },
+  "backend": {
+    "entry": "server.js",
+    "dependencies": {
+      "express": "^4.21.2",
+      "sequelize": "^6.37.6",
+      "mysql2": "^3.13.0",
+      "jsonwebtoken": "^9.0.2",
+      "bcrypt": "^5.1.1",
+      "cors": "^2.8.5",
+      "dotenv": "^16.4.7",
+      "exceljs": "^4.4.0",
+      "nodemailer": "^6.10.0",
+      "zod": "^4.0.17"
+    },
+    "routes": {
+      "loginRouter.js": {
+        "imports": ["../middlewares/auth", "jsonwebtoken"],
+        "exports": ["POST /api/login"],
+        "used_by": ["server.js"]
+      },
+      "eventRouter.js": {
+        "imports": ["../middlewares/auth", "../models", "../utils/errorMessages", "dayjs", "exceljs"],
+        "exports": [
+          "GET /api/events",
+          "GET /api/events/:id",
+          "GET /api/reports/summary",
+          "GET /api/events/:id/reservations",
+          "GET /api/events/:id/export",
+          "GET /api/reports/export",
+          "POST /api/events",
+          "DELETE /api/events/:id",
+          "DELETE /api/events/:id/force-delete",
+          "PUT /api/events/:id",
+          "POST /api/events/:id/checkin",
+          "POST /api/events/:id/violations",
+          "GET /api/events/:id/violations",
+          "POST /api/events/:id/auto-check"
+        ],
+        "used_by": ["server.js"]
+      },
+      "reservationRouter.js": {
+        "imports": ["../models", "../middlewares/auth", "../middlewares/checkSurvey", "../utils/reservationTime", "../utils/validators", "../config/email", "dayjs"],
+        "exports": [
+          "POST /api/reservations",
+          "DELETE /api/reservations/:id",
+          "GET /api/reservations/public",
+          "GET /api/reservations"
+        ],
+        "used_by": ["server.js"]
+      },
+      "blacklistRouter.js": {
+        "imports": ["../models", "../middlewares/auth"],
+        "exports": ["GET /api/blacklist", "POST /api/blacklist/recordViolation", "DELETE /api/blacklist/:id"],
+        "used_by": ["server.js"]
+      },
+      "settingsRouter.js": {
+        "imports": ["../models", "../middlewares/auth"],
+        "exports": ["GET /api/settings/survey-required", "PUT /api/settings/survey-required"],
+        "used_by": ["server.js"]
+      },
+      "englishTableSurveyRouter.js": {
+        "imports": ["../models", "../middlewares/auth", "exceljs"],
+        "exports": [
+          "GET /api/survey/check/:studentId",
+          "POST /api/survey/english-table",
+          "GET /api/survey/export",
+          "DELETE /api/survey/english-table/all",
+          "DELETE /api/survey/english-table/:studentId",
+          "GET /api/survey/stats"
+        ],
+        "used_by": ["server.js"]
+      },
+      "surveyRouter.js": {
+        "imports": ["../models", "../middlewares/auth", "exceljs", "../surveys.json"],
+        "exports": [
+          "POST /api/surveys/:surveyId",
+          "GET /api/surveys/check/:surveyId/:studentId",
+          "GET /api/surveys/stats/:surveyId",
+          "GET /api/surveys/export/:surveyId"
+        ],
+        "used_by": ["server.js"]
+      },
+      "surveySettingsRouter.js": {
+        "imports": ["../models", "../middlewares/auth"],
+        "exports": [
+          "GET /api/admin/survey-settings",
+          "POST /api/admin/survey-settings",
+          "GET /api/admin/survey-settings/:id",
+          "PUT /api/admin/survey-settings/:id",
+          "DELETE /api/admin/survey-settings/:id",
+          "PATCH /api/admin/survey-settings/:id/toggle",
+          "POST /api/admin/survey-settings/initialize"
+        ],
+        "used_by": ["server.js"]
+      },
+      "adminRouter.js": {
+        "imports": ["../models"],
+        "exports": [
+          "GET /api/settings/survey-enabled",
+          "PUT /api/settings/survey-enabled"
+        ],
+        "used_by": ["server.js"]
+      }
+    },
+    "models": {
+      "User.js": {
+        "imports": ["sequelize"],
+        "exports": ["User"],
+        "used_by": ["models/index.js", "routes/reservationRouter.js", "routes/blacklistRouter.js", "routes/eventRouter.js"]
+      },
+      "Event.js": {
+        "imports": ["sequelize"],
+        "exports": ["Event"],
+        "used_by": ["models/index.js", "routes/eventRouter.js", "routes/reservationRouter.js"]
+      },
+      "Reservation.js": {
+        "imports": ["sequelize"],
+        "exports": ["Reservation"],
+        "used_by": ["models/index.js", "routes/eventRouter.js", "routes/reservationRouter.js"]
+      },
+      "BlackListRecord.js": {
+        "imports": ["sequelize"],
+        "exports": ["BlackListRecord"],
+        "used_by": ["models/index.js", "routes/blacklistRouter.js", "routes/eventRouter.js"]
+      },
+      "Settings.js": {
+        "imports": ["sequelize"],
+        "exports": ["Settings"],
+        "used_by": ["models/index.js", "routes/settingsRouter.js", "routes/adminRouter.js"]
+      },
+      "SystemSettings.js": {
+        "imports": ["sequelize"],
+        "exports": ["SystemSettings"],
+        "used_by": ["models/index.js"]
+      },
+      "EventViolation.js": {
+        "imports": ["sequelize"],
+        "exports": ["EventViolation"],
+        "used_by": ["models/index.js", "routes/eventRouter.js"]
+      },
+      "EnglishTableSurvey.js": {
+        "imports": ["sequelize"],
+        "exports": ["EnglishTableSurveyResponse"],
+        "used_by": ["models/index.js", "routes/englishTableSurveyRouter.js", "routes/surveyRouter.js"]
+      },
+      "EnglishClubSurveyResponse.js": {
+        "imports": ["sequelize"],
+        "exports": ["EnglishClubSurveyResponse"],
+        "used_by": ["models/index.js", "routes/surveyRouter.js"]
+      },
+      "SurveySettings.js": {
+        "imports": ["sequelize"],
+        "exports": ["SurveySettings"],
+        "used_by": ["models/index.js", "routes/surveySettingsRouter.js"]
+      }
+    },
+    "middlewares": {
+      "auth.js": {
+        "imports": ["jsonwebtoken", "../utils/errorMessages"],
+        "exports": ["authMiddleware", "adminMiddleware", "workerMiddleware", "workerOnlyMiddleware", "secretKey"],
+        "used_by": ["routes/loginRouter.js", "routes/eventRouter.js", "routes/reservationRouter.js", "routes/blacklistRouter.js", "routes/settingsRouter.js", "routes/englishTableSurveyRouter.js", "routes/surveyRouter.js", "routes/surveySettingsRouter.js"]
+      },
+      "checkSurvey.js": {
+        "imports": ["../models"],
+        "exports": ["checkSurvey"],
+        "used_by": ["routes/reservationRouter.js"]
+      },
+      "checkEnglishTableSurvey.js": {
+        "imports": ["../models"],
+        "exports": ["checkEnglishTableSurvey"],
+        "used_by": []
+      },
+      "errorHandler.js": {
+        "imports": [],
+        "exports": ["errorHandler"],
+        "used_by": ["server.js"]
+      }
+    },
+    "utils": {
+      "errorMessages.js": {
+        "imports": [],
+        "exports": ["ERROR_MESSAGES", "createErrorMessage", "logError", "createAPIError"],
+        "used_by": ["middlewares/auth.js", "routes/eventRouter.js"]
+      },
+      "reservationTime.js": {
+        "imports": ["dayjs"],
+        "exports": ["calculateReservationTime"],
+        "used_by": ["routes/reservationRouter.js"]
+      },
+      "validators.js": {
+        "imports": [],
+        "exports": ["validateStudentId", "validateName", "validateEmail"],
+        "used_by": ["routes/reservationRouter.js"]
+      }
+    },
+    "config": {
+      "database.js": {
+        "imports": ["sequelize"],
+        "exports": ["sequelize"],
+        "used_by": ["db.js"]
+      },
+      "email.js": {
+        "imports": ["nodemailer"],
+        "exports": ["transporter", "sendEmail"],
+        "used_by": ["routes/reservationRouter.js"]
+      }
+    }
+  },
+  "frontend": {
+    "entry": "src/App.js",
+    "dependencies": {
+      "react": "^18.2.0",
+      "react-dom": "^18.2.0",
+      "react-router-dom": "^7.1.5",
+      "react-bootstrap": "^2.10.9",
+      "bootstrap": "^5.3.3",
+      "@fullcalendar/react": "^6.1.15",
+      "@fullcalendar/daygrid": "^6.1.15",
+      "@fullcalendar/list": "^6.1.15",
+      "dayjs": "^1.11.13",
+      "axios": "^1.10.0",
+      "recharts": "^3.1.0",
+      "xlsx": "^0.18.5",
+      "web-vitals": "^4.2.4"
+    },
+    "components": {
+      "App.js": {
+        "imports": ["react-router-dom", "./components/EventList", "./components/AdminPage", "./components/LoginPage", "./components/EnglishTableSurveyPage", "./components/SurveyPage"],
+        "exports": ["App"],
+        "used_by": ["src/index.js"]
+      },
+      "EventList.js": {
+        "imports": ["@fullcalendar/react", "@fullcalendar/daygrid", "@fullcalendar/list", "dayjs", "./EventDetail", "../utils/reservationTime", "../constants/eventTypes", "./ReservationSearchModal", "../utils/errorHandler", "./EventList.css"],
+        "exports": ["EventList"],
+        "used_by": ["App.js"]
+      },
+      "AdminPage.js": {
+        "imports": ["dayjs", "react-bootstrap", "recharts", "../utils/errorHandler"],
+        "exports": ["AdminPage"],
+        "used_by": ["App.js"]
+      },
+      "LoginPage.js": {
+        "imports": ["react-router-dom"],
+        "exports": ["LoginPage"],
+        "used_by": ["App.js"]
+      },
+      "EventDetail.js": {
+        "imports": ["react-bootstrap", "../utils/reservationTime", "../utils/errorHandler", "../utils/validators", "./EnglishTableSurveyModal", "./EventDetail.css"],
+        "exports": ["EventDetail"],
+        "used_by": ["EventList.js"]
+      },
+      "EnglishTableSurveyPage.js": {
+        "imports": [],
+        "exports": ["EnglishTableSurveyPage"],
+        "used_by": ["App.js"]
+      },
+      "SurveyPage.js": {
+        "imports": [],
+        "exports": ["SurveyPage"],
+        "used_by": ["App.js"]
+      },
+      "EnglishTableSurveyModal.js": {
+        "imports": [],
+        "exports": ["EnglishTableSurveyModal"],
+        "used_by": ["EventDetail.js"]
+      },
+      "DynamicSurveyModal.js": {
+        "imports": [],
+        "exports": ["DynamicSurveyModal"],
+        "used_by": []
+      },
+      "EditEventModal.js": {
+        "imports": [],
+        "exports": ["EditEventModal"],
+        "used_by": []
+      },
+      "QuestionChart.js": {
+        "imports": [],
+        "exports": ["QuestionChart"],
+        "used_by": []
+      },
+      "ReservationSearchModal.js": {
+        "imports": [],
+        "exports": ["ReservationSearchModal"],
+        "used_by": ["EventList.js"]
+      }
+    },
+    "utils": {
+      "errorHandler.js": {
+        "imports": [],
+        "exports": ["createErrorMessage", "handleAPIError", "showErrorMessage", "showSuccessMessage", "safeAPICall", "authenticatedAPICall", "handleValidationError", "withLoadingState"],
+        "used_by": ["components/EventList.js", "components/AdminPage.js", "components/EventDetail.js"]
+      },
+      "reservationTime.js": {
+        "imports": ["dayjs"],
+        "exports": ["calculateReservationTime"],
+        "used_by": ["components/EventList.js", "components/EventDetail.js"]
+      },
+      "validators.js": {
+        "imports": [],
+        "exports": ["validateStudentId", "validateName", "validateEmail", "validateReservationData"],
+        "used_by": ["components/EventDetail.js"]
+      }
+    },
+    "constants": {
+      "eventTypes.js": {
+        "imports": [],
+        "exports": ["getEventAbbreviation"],
+        "used_by": ["components/EventList.js"]
+      }
+    },
+    "assets": {
+      "images": {
+        "EMILEGO.png": {
+          "used_by": ["App.js (background image)", "public/index.html"]
+        },
+        "paper_texture.png": {
+          "used_by": ["App.js (background image)"]
+        }
+      }
+    },
+    "public": {
+      "images": {
+        "bg-pattern.png": {
+          "used_by": ["App.js (background image)"]
+        },
+        "bg-pattern2.png": {
+          "used_by": ["App.js (background image)"]
+        },
+        "english_club.jpg": {
+          "used_by": ["components/EventList.js"]
+        },
+        "english_table.jpg": {
+          "used_by": ["components/EventList.js"]
+        },
+        "international_forum.jpg": {
+          "used_by": ["components/EventList.js"]
+        },
+        "Job Talk.jpg": {
+          "used_by": ["components/EventList.js"]
+        },
+        "job_talk_1.jpg": {
+          "used_by": ["components/EventList.js"]
+        },
+        "job_talk_2.jpg": {
+          "used_by": ["components/EventList.js"]
+        },
+        "job_talk_3.jpg": {
+          "used_by": ["components/EventList.js"]
+        },
+        "job_talk_4.jpg": {
+          "used_by": ["components/EventList.js"]
+        },
+        "job_talk_5.jpg": {
+          "used_by": ["components/EventList.js"]
+        },
+        "job_talk_6.jpg": {
+          "used_by": ["components/EventList.js"]
+        }
+      },
+      "files": {
+        "EMILEGO.png": {
+          "used_by": ["App.js (logo image)"]
+        },
+        "favicon.ico": {
+          "used_by": ["public/index.html"]
+        },
+        "logo192.png": {
+          "used_by": ["public/index.html"]
+        },
+        "logo512.png": {
+          "used_by": ["public/index.html"]
+        },
+        "manifest.json": {
+          "used_by": ["public/index.html"]
+        },
+        "robots.txt": {
+          "used_by": ["public/index.html"]
+        },
+        "surveys.json": {
+          "used_by": ["backend/routes/surveyRouter.js"]
+        },
+        "web.config": {
+          "used_by": ["deployment"]
+        }
+      }
+    }
+  },
+  "data_files": {
+    "surveys.json": {
+      "used_by": ["backend/routes/surveyRouter.js"]
+    },
+    "english_table_survey.json": {
+      "used_by": []
+    }
+  },
+  "documentation": {
+    "files": [
+      "API_SETTINGS_README.md",
+      "CHECKIN_AND_VIOLATION_FEATURES.md",
+      "CREATE_ENV_FILE.md",
+      "CUSTOM_EVENT_TYPE_FEATURE.md",
+      "DATABASE_OPTIMIZATION_GUIDE.md",
+      "DEPLOYMENT_GUIDE.md",
+      "DUPLICATE_PREVENTION_SETUP.md",
+      "EMAIL_SETUP_GUIDE.md",
+      "EVENTTYPE_SETUP.md",
+      "SYSTEM_PROTECTION_GUIDE.md",
+      "VIOLATION_MANAGEMENT_FEATURES.md",
+      "VIOLATION_STATUS_UPDATE.md",
+      "WORKER_ACCOUNT_SETUP.md",
+      "ARCHITECTURE_REFACTOR.md",
+      "BUILD_FIX_SUMMARY.md",
+      "DEBUG_LOGIN.md",
+      "JOB_TALK_CAROUSEL_README.md",
+      "WORKER_PERMISSIONS_FINAL.md",
+      "WORKER_UI_RESTRICTIONS.md"
+    ]
+  },
+  "migrations": {
+    "files": [
+      "20241201000001-create-settings.js",
+      "add-checkin-and-violation-features.js",
+      "add-custom-reservation-rule.sql",
+      "add-database-indexes.js",
+      "add-eventtype-to-events.sql",
+      "add-location-to-events.sql",
+      "add-unique-constraint-reservations.js",
+      "add-violation-status-to-reservations.js"
+    ]
+  },
+  "tests": {
+    "files": [
+      "settings.test.js",
+      "setup.js"
+    ]
+  }
+}

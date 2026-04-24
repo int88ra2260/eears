@@ -1,0 +1,109 @@
+.event-hover-card {
+  position: fixed;
+  z-index: 5000;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(42, 93, 159, 0.22);
+  box-shadow: 0 16px 48px rgba(42, 93, 159, 0.18);
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  color: #1c3d6e;
+}
+
+.event-hover-card__title {
+  font-weight: 700;
+  font-size: 0.98rem;
+  line-height: 1.25;
+  margin-bottom: 6px;
+}
+
+.event-hover-card__time {
+  font-size: 0.85rem;
+  color: #4b5563;
+  margin-bottom: 8px;
+}
+
+.event-hover-card__location {
+  font-size: 0.82rem;
+  color: #374151;
+  margin-bottom: 8px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.event-hover-card__location-label {
+  font-weight: 600;
+  color: #1c3d6e;
+  margin-right: 4px;
+}
+
+.event-hover-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-start;
+}
+
+.event-hover-card__status-pill {
+  flex-shrink: 0;
+}
+
+.event-hover-card__type {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1c3d6e;
+  background: rgba(42, 93, 159, 0.08);
+  border: 1px solid rgba(42, 93, 159, 0.15);
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.event-hover-card__spots {
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+.event-hover-card__reason {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-hover-card {
+    transition: none;
+  }
+}
+
+/* 窄螢幕清單：可展開摘要（Phase 2） */
+.fc-event-mobile-wrap {
+  min-width: 0;
+  text-align: left;
+}
+
+.fc-event-mobile-expand {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  line-height: 1;
+  min-width: 1.25rem;
+  color: #2a5d9f !important;
+  text-decoration: none !important;
+}
+
+.fc-event-mobile-detail {
+  border-top: 1px solid rgba(42, 93, 159, 0.12);
+  padding-top: 6px;
+  line-height: 1.35;
+}
+
+.fc-event-mobile-status {
+  margin-top: 2px;
+}
+
+.fc-event-mobile-survey {
+  margin-top: 4px;
+}
+

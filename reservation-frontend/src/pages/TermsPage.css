@@ -1,0 +1,33 @@
+.terms-page {
+  padding: 1rem 0 2rem;
+}
+
+.terms-page-content {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.terms-page-intro {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: #495057;
+  margin-bottom: 1.5rem;
+}
+
+.terms-page-section {
+  margin-bottom: 1.5rem;
+}
+
+.terms-page-section h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #212529;
+}
+
+.terms-page-section p {
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: #495057;
+  margin: 0;
+}

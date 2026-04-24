@@ -1,0 +1,28 @@
+.reservation-result-list {
+  margin-top: 1rem;
+}
+
+.reservation-result-list-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.reservation-result-list-cards {
+  margin-bottom: 1rem;
+}
+
+.reservation-result-list--empty {
+  background: #f8f9fa;
+  border: 1px dashed #dee2e6;
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.reservation-result-list-hint,
+.reservation-result-list-empty {
+  margin: 0;
+  color: #6c757d;
+  font-size: 0.95rem;
+}

@@ -1,0 +1,39 @@
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-header .breadcrumbs {
+  margin-bottom: 0.5rem;
+}
+
+.page-header .breadcrumb {
+  font-size: 0.875rem;
+  background: transparent;
+  padding: 0;
+}
+
+.page-header .breadcrumb-item a {
+  color: var(--bs-primary);
+  text-decoration: none;
+}
+
+.page-header .breadcrumb-item a:hover {
+  text-decoration: underline;
+}
+
+.page-header .breadcrumb-item + .breadcrumb-item::before {
+  content: "›";
+  color: #6c757d;
+}
+
+.page-header-title {
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.page-header-lead {
+  color: #6c757d;
+  font-size: 0.95rem;
+  margin-bottom: 0;
+}

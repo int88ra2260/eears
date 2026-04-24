@@ -1,0 +1,132 @@
+專案結構樹狀圖 (忽略 node_modules, build, dist)
+
+F:\backend\
+├── API_SETTINGS_README.md
+├── CHECKIN_AND_VIOLATION_FEATURES.md
+├── CREATE_ENV_FILE.md
+├── CUSTOM_EVENT_TYPE_FEATURE.md
+├── DATABASE_OPTIMIZATION_GUIDE.md
+├── DEPLOYMENT_GUIDE.md
+├── DUPLICATE_PREVENTION_SETUP.md
+├── EMAIL_SETUP_GUIDE.md
+├── EVENTTYPE_SETUP.md
+├── SYSTEM_PROTECTION_GUIDE.md
+├── VIOLATION_MANAGEMENT_FEATURES.md
+├── VIOLATION_STATUS_UPDATE.md
+├── WORKER_ACCOUNT_SETUP.md
+├── jest.config.js
+├── package.json
+├── package-lock.json
+├── server.js
+├── db.js
+├── surveys.json
+├── config/
+│   ├── database.js
+│   └── email.js
+├── constants/
+│   └── eventTypes.js
+├── middlewares/
+│   ├── auth.js
+│   ├── checkEnglishTableSurvey.js
+│   ├── checkSurvey.js
+│   └── errorHandler.js
+├── migrations/
+│   ├── 20241201000001-create-settings.js
+│   ├── add-checkin-and-violation-features.js
+│   ├── add-custom-reservation-rule.sql
+│   ├── add-database-indexes.js
+│   ├── add-eventtype-to-events.sql
+│   ├── add-location-to-events.sql
+│   ├── add-unique-constraint-reservations.js
+│   └── add-violation-status-to-reservations.js
+├── models/
+│   ├── BlackListRecord.js
+│   ├── EnglishClubSurveyResponse.js
+│   ├── EnglishTableSurvey.js
+│   ├── Event.js
+│   ├── EventViolation.js
+│   ├── index.js
+│   ├── Reservation.js
+│   ├── Settings.js
+│   ├── SurveySettings.js
+│   ├── SystemSettings.js
+│   └── User.js
+├── routes/
+│   └── [9個路由檔案]
+├── scripts/
+├── tests/
+│   ├── settings.test.js
+│   └── setup.js
+├── utils/
+│   ├── errorMessages.js
+│   ├── reservationTime.js
+│   └── validators.js
+└── ops/
+    ├── cleanup-report.md
+    └── tree.txt
+
+F:\frontend\
+├── ARCHITECTURE_REFACTOR.md
+├── BUILD_FIX_SUMMARY.md
+├── DEBUG_LOGIN.md
+├── JOB_TALK_CAROUSEL_README.md
+├── README.md
+├── WORKER_PERMISSIONS_FINAL.md
+├── WORKER_UI_RESTRICTIONS.md
+├── package.json
+├── package-lock.json
+├── public/
+│   ├── bg-pattern2.png
+│   ├── EMILEGO.png
+│   ├── favicon.ico
+│   ├── logo192.png
+│   ├── logo512.png
+│   ├── manifest.json
+│   ├── robots.txt
+│   ├── surveys.json
+│   ├── web.config
+│   └── images/
+│       ├── bg-pattern.png
+│       ├── bg-pattern2.png
+│       ├── english_club.jpg
+│       ├── english_table.jpg
+│       ├── international_forum.jpg
+│       ├── Job Talk.jpg
+│       ├── job_talk_1.jpg
+│       ├── job_talk_2.jpg
+│       ├── job_talk_3.jpg
+│       ├── job_talk_4.jpg
+│       ├── job_talk_5.jpg
+│       └── job_talk_6.jpg
+└── src/
+    ├── App.css
+    ├── App.js
+    ├── App.test.js
+    ├── index.css
+    ├── index.js
+    ├── reportWebVitals.js
+    ├── setupTests.js
+    ├── assets/
+    │   ├── EMILEGO.png
+    │   └── paper_texture.png
+    ├── components/
+    │   ├── AdminPage.js
+    │   ├── DynamicSurveyModal.js
+    │   ├── EditEventModal.js
+    │   ├── EnglishTableSurveyModal.js
+    │   ├── EnglishTableSurveyPage.js
+    │   ├── EventDetail.css
+    │   ├── EventDetail.js
+    │   ├── EventList.css
+    │   ├── EventList.js
+    │   ├── LoginPage.js
+    │   ├── QuestionChart.js
+    │   ├── ReservationSearchModal.js
+    │   └── SurveyPage.js
+    ├── constants/
+    │   └── eventTypes.js
+    ├── hooks/
+    └── utils/
+        ├── errorHandler.js
+        ├── reservationTime.js
+        └── validators.js

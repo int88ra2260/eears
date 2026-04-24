@@ -1,0 +1,62 @@
+/* 與 event-hover-card / 預約卡語意一致，藍白學術風 */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  vertical-align: middle;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: left;
+}
+
+.status-badge--sm {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.status-badge--md {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+}
+
+.status-badge--success {
+  background: rgba(25, 135, 84, 0.1);
+  color: #146c43;
+  border-color: rgba(25, 135, 84, 0.28);
+}
+
+.status-badge--neutral {
+  background: rgba(108, 117, 125, 0.1);
+  color: #495057;
+  border-color: rgba(108, 117, 125, 0.22);
+}
+
+.status-badge--warning {
+  background: rgba(255, 193, 7, 0.18);
+  color: #856404;
+  border-color: rgba(255, 193, 7, 0.42);
+}
+
+.status-badge--danger {
+  background: rgba(220, 53, 69, 0.1);
+  color: #b42318;
+  border-color: rgba(220, 53, 69, 0.22);
+}
+
+.status-badge--info {
+  background: rgba(42, 93, 159, 0.1);
+  color: #1c3d6e;
+  border-color: rgba(42, 93, 159, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-badge {
+    transition: none;
+  }
+}

@@ -1,0 +1,184 @@
+{
+  "analysis_date": "2024-12-19",
+  "analysis_scope": "全專案依賴分析",
+  "unused_candidates": {
+    "backend_modules": {
+      "middlewares": [
+        {
+          "file": "middlewares/checkEnglishTableSurvey.js",
+          "reason": "未在任何路由中被引用",
+          "status": "候選刪除",
+          "evidence": "在 dependency-graph.json 中顯示 used_by 為空陣列",
+          "risk_level": "低",
+          "notes": "可能是舊版本的問卷檢查中間件，已被 checkSurvey.js 取代"
+        }
+      ],
+      "utils": [],
+      "routes": [],
+      "models": []
+    },
+    "frontend_modules": {
+      "components": [
+        {
+          "file": "src/components/DynamicSurveyModal.js",
+          "reason": "未在任何檔案中被引用",
+          "status": "候選刪除",
+          "evidence": "在 dependency-graph.json 中顯示 used_by 為空陣列",
+          "risk_level": "低",
+          "notes": "可能是動態問卷模態框，但未在當前系統中使用"
+        },
+        {
+          "file": "src/components/EditEventModal.js",
+          "reason": "未在任何檔案中被引用",
+          "status": "候選刪除",
+          "evidence": "在 dependency-graph.json 中顯示 used_by 為空陣列",
+          "risk_level": "低",
+          "notes": "可能是編輯活動的模態框，但未在當前系統中使用"
+        },
+        {
+          "file": "src/components/QuestionChart.js",
+          "reason": "未在任何檔案中被引用",
+          "status": "候選刪除",
+          "evidence": "在 dependency-graph.json 中顯示 used_by 為空陣列",
+          "risk_level": "低",
+          "notes": "可能是問卷圖表組件，但未在當前系統中使用"
+        }
+      ],
+      "utils": [],
+      "constants": [],
+      "assets": []
+    },
+    "data_files": [
+      {
+        "file": "public/english_table_survey.json",
+        "reason": "未在任何檔案中被引用",
+        "status": "候選刪除",
+        "evidence": "在 dependency-graph.json 中顯示 used_by 為空陣列",
+        "risk_level": "低",
+        "notes": "可能是舊版本的問卷配置檔案，已被 surveys.json 取代"
+      }
+    ],
+    "documentation": {
+      "status": "保留",
+      "reason": "所有文件都是重要的系統文檔，用於部署、維護和功能說明",
+      "files": [
+        "API_SETTINGS_README.md",
+        "CHECKIN_AND_VIOLATION_FEATURES.md",
+        "CREATE_ENV_FILE.md",
+        "CUSTOM_EVENT_TYPE_FEATURE.md",
+        "DATABASE_OPTIMIZATION_GUIDE.md",
+        "DEPLOYMENT_GUIDE.md",
+        "DUPLICATE_PREVENTION_SETUP.md",
+        "EMAIL_SETUP_GUIDE.md",
+        "EVENTTYPE_SETUP.md",
+        "SYSTEM_PROTECTION_GUIDE.md",
+        "VIOLATION_MANAGEMENT_FEATURES.md",
+        "VIOLATION_STATUS_UPDATE.md",
+        "WORKER_ACCOUNT_SETUP.md",
+        "ARCHITECTURE_REFACTOR.md",
+        "BUILD_FIX_SUMMARY.md",
+        "DEBUG_LOGIN.md",
+        "JOB_TALK_CAROUSEL_README.md",
+        "WORKER_PERMISSIONS_FINAL.md",
+        "WORKER_UI_RESTRICTIONS.md"
+      ]
+    },
+    "migrations": {
+      "status": "保留",
+      "reason": "所有遷移檔案都是重要的資料庫結構變更記錄，不得刪除",
+      "files": [
+        "20241201000001-create-settings.js",
+        "add-checkin-and-violation-features.js",
+        "add-custom-reservation-rule.sql",
+        "add-database-indexes.js",
+        "add-eventtype-to-events.sql",
+        "add-location-to-events.sql",
+        "add-unique-constraint-reservations.js",
+        "add-violation-status-to-reservations.js"
+      ]
+    },
+    "tests": {
+      "status": "保留",
+      "reason": "測試檔案用於系統驗證，應保留",
+      "files": [
+        "settings.test.js",
+        "setup.js"
+      ]
+    }
+  },
+  "dependencies_analysis": {
+    "backend_unused_packages": [
+      {
+        "package": "nodemailer",
+        "reason": "在前端 package.json 中出現，但前端不應該使用後端依賴",
+        "status": "應移除",
+        "evidence": "前端 package.json 第14行包含 nodemailer，但前端代碼中未使用"
+      }
+    ],
+    "frontend_unused_packages": [
+      {
+        "package": "cra-template",
+        "reason": "Create React App 模板，僅在初始化時使用",
+        "status": "可移除",
+        "evidence": "僅在 package.json 中定義，代碼中未使用"
+      }
+    ]
+  },
+  "potential_optimizations": {
+    "backend": [
+      {
+        "file": "middlewares/checkEnglishTableSurvey.js",
+        "optimization": "刪除未使用的中間件",
+        "impact": "減少代碼複雜度",
+        "risk": "低"
+      }
+    ],
+    "frontend": [
+      {
+        "file": "src/components/DynamicSurveyModal.js",
+        "optimization": "刪除未使用的組件",
+        "impact": "減少打包大小",
+        "risk": "低"
+      },
+      {
+        "file": "src/components/EditEventModal.js",
+        "optimization": "刪除未使用的組件",
+        "impact": "減少打包大小",
+        "risk": "低"
+      },
+      {
+        "file": "src/components/QuestionChart.js",
+        "optimization": "刪除未使用的組件",
+        "impact": "減少打包大小",
+        "risk": "低"
+      }
+    ],
+    "data_files": [
+      {
+        "file": "public/english_table_survey.json",
+        "optimization": "刪除未使用的數據檔案",
+        "impact": "減少專案大小",
+        "risk": "低"
+      }
+    ]
+  },
+  "recommendations": {
+    "safe_to_delete": [
+      "middlewares/checkEnglishTableSurvey.js",
+      "src/components/DynamicSurveyModal.js",
+      "src/components/EditEventModal.js",
+      "src/components/QuestionChart.js",
+      "public/english_table_survey.json"
+    ],
+    "package_cleanup": [
+      "移除前端 package.json 中的 nodemailer 依賴",
+      "移除前端 package.json 中的 cra-template 依賴"
+    ],
+    "keep_important": [
+      "所有 migrations/ 目錄下的檔案",
+      "所有 documentation 檔案",
+      "所有 tests/ 目錄下的檔案",
+      "所有圖片和靜態資源（都有實際使用）"
+    ]
+  }
+}

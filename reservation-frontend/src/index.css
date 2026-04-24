@@ -1,0 +1,219 @@
+/* 統一設計系統已在 index.js 中引入 */
+
+/* Phase 3 無障礙：跳過連結（僅聚焦時顯示） */
+.skip-link {
+  position: absolute;
+  top: -3rem;
+  left: 0.5rem;
+  z-index: 10000;
+  padding: 0.5rem 1rem;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: top 0.2s ease;
+}
+.skip-link:focus {
+  top: 0.5rem;
+  outline: 2px solid var(--color-primary-dark);
+  outline-offset: 2px;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-secondary);
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* FullCalendar 手機版事件樣式調整 */
+.fc-event-title,
+.fc-event-time,
+.fc-event {
+  white-space: normal !important;
+  word-break: break-word;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.fc-event-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 手機螢幕進一步壓縮 */
+@media (max-width: 576px) {
+  .fc-event-title,
+  .fc-event-time,
+  .fc-event {
+    font-size: 0.68rem !important;
+    padding: 2px 4px !important;
+  }
+
+  .fc .fc-daygrid-event {
+    max-height: 100px;
+    overflow: hidden;
+  }
+}
+
+/* modal 響應式調整 */
+@media (max-width: 576px) {
+  .modal-dialog {
+    max-width: 95% !important;
+    margin: 1rem auto !important;
+  }
+
+  .modal-content {
+    font-size: 0.85rem;
+    padding: 0.5rem;
+  }
+
+  .modal-body img {
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .modal-header .btn-close {
+    font-size: 1rem;
+  }
+
+  .modal-title {
+    font-size: 1.1rem;
+  }
+
+  .modal-footer .btn {
+    font-size: 0.9rem;
+    padding: 0.3rem 0.6rem;
+  }
+
+  .container,
+  .container-fluid {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .btn {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .nav-tabs .nav-link {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .fc .fc-daygrid-event {
+    font-size: 0.75rem !important;
+    padding: 3px 4px !important;
+  }
+}
+
+/* ============================ */
+/* 🔵 藍白學術風主題樣式設計 */
+/* ============================ */
+
+.container {
+  background-image: url('./assets/paper_texture.png'); /* ✅ 相對於 src/index.css 的路徑 */
+  background-repeat: repeat;
+  background-size: contain;
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+}
+
+/* 主要按鈕藍色主題 */
+.btn-primary {
+  background-color: #F9F4EC;
+}
+
+.btn-primary:hover {
+  background-color: #F5ECD9;
+  border-color: #E4D9C0;
+}
+
+/* 活動事件卡片風格（淺藍） */
+.fc .fc-daygrid-event {
+  background-color: #fffbf2 !important; /* 淺藍灰色，與背景有對比 */
+  border: 1px solid #E4D9C0 !important;
+  border-radius: 6px !important;
+  padding: 6px 8px !important;
+  color: #1c3d6e !important;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.fc .fc-daygrid-event:hover {
+  background-color: #F5ECD9 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* 日期數字樣式 */
+.fc .fc-daygrid-day-number {
+  text-decoration: none !important;
+  border-bottom: none !important;
+  color: #2a5d9f !important;
+  font-weight: bold;
+}
+
+/* modal 標題主色調 */
+.modal-title {
+  color: #2a5d9f;
+}
+
+/* tab 樣式藍色加強 */
+.nav-tabs .nav-link.active {
+  background-color: #2a5d9f;
+  color: white;
+  border-color: #2a5d9f;
+}
+
+.nav-tabs .nav-link {
+  color: #2a5d9f;
+}
+
+.nav-tabs .nav-link:hover {
+  background-color: #eaf1fc;
+  border-color: #aaccee;
+}
+.fc .fc-list-event-dot {
+  display: none !important;
+}
+.fc .fc-list-event-time {
+  font-size: 1.25rem !important;
+  font-weight: bold !important;
+}
+
+/* 調整 List 模式的活動標題與時間字體大小 */
+.fc .fc-list-event-title {
+  font-size: 1.1rem !important;
+  font-weight: bold;
+  color: #2a5d9f;
+}
+
+.fc .fc-list-event-time {
+  font-size: 1rem !important;
+  font-weight: normal;
+  color: #444;
+}
+
+/* FullCalendar 格線強化 */
+.fc .fc-scrollgrid {
+  border: 1px solid #cccccc !important;
+}
+
+.fc .fc-scrollgrid td,
+.fc .fc-scrollgrid th {
+  border: 1px solid #c0c0c0 !important; /* 改成更深的灰色 */
+}

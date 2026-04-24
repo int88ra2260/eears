@@ -1,0 +1,28 @@
+.reservation-lookup-section {
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.reservation-lookup-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.reservation-lookup-hint {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-bottom: 1rem;
+}
+
+.reservation-lookup-fields {
+  max-width: 400px;
+}
+
+.reservation-lookup-submit {
+  margin-top: 0.25rem;
+}

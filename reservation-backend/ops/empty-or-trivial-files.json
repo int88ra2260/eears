@@ -1,0 +1,182 @@
+{
+  "analysis_date": "2024-12-19",
+  "analysis_scope": "空白或純樣板檔案偵測",
+  "empty_files": {
+    "status": "無發現",
+    "files": [],
+    "reason": "所有檔案都包含實際內容"
+  },
+  "trivial_files": {
+    "status": "發現數個純樣板檔案",
+    "files": [
+      {
+        "file": "F:\\frontend\\src\\App.test.js",
+        "type": "測試樣板",
+        "size": "約200位元組",
+        "content": "基本的 React 測試樣板",
+        "status": "保留",
+        "reason": "測試檔案，應保留以維持測試結構"
+      },
+      {
+        "file": "F:\\frontend\\src\\setupTests.js",
+        "type": "測試設定樣板",
+        "size": "約100位元組",
+        "content": "基本的測試設定樣板",
+        "status": "保留",
+        "reason": "測試設定檔案，應保留"
+      },
+      {
+        "file": "F:\\frontend\\src\\reportWebVitals.js",
+        "type": "性能監控樣板",
+        "size": "約150位元組",
+        "content": "基本的 Web Vitals 監控樣板",
+        "status": "保留",
+        "reason": "性能監控檔案，應保留"
+      },
+      {
+        "file": "F:\\frontend\\src\\index.js",
+        "type": "應用程式入口",
+        "size": "約300位元組",
+        "content": "React 應用程式入口點",
+        "status": "保留",
+        "reason": "應用程式入口檔案，必須保留"
+      }
+    ]
+  },
+  "minimal_content_files": {
+    "status": "發現數個最小內容檔案",
+    "files": [
+      {
+        "file": "F:\\frontend\\src\\hooks\\",
+        "type": "空目錄",
+        "size": "0位元組",
+        "content": "空目錄",
+        "status": "候選刪除",
+        "reason": "空目錄，無實際用途",
+        "risk_level": "無"
+      },
+      {
+        "file": "F:\\frontend\\src\\assets\\",
+        "type": "資產目錄",
+        "size": "包含檔案",
+        "content": "包含圖片檔案",
+        "status": "保留",
+        "reason": "包含實際使用的圖片檔案"
+      },
+      {
+        "file": "F:\\backend\\scripts\\",
+        "type": "腳本目錄",
+        "size": "0位元組",
+        "content": "空目錄",
+        "status": "候選刪除",
+        "reason": "空目錄，無實際用途",
+        "risk_level": "無"
+      }
+    ]
+  },
+  "configuration_files": {
+    "status": "所有配置檔案都有實際用途",
+    "files": [
+      {
+        "file": "jest.config.js",
+        "type": "測試配置",
+        "status": "保留",
+        "reason": "Jest 測試配置檔案"
+      },
+      {
+        "file": "package.json (前端)",
+        "type": "依賴配置",
+        "status": "保留",
+        "reason": "前端依賴配置檔案"
+      },
+      {
+        "file": "package.json (後端)",
+        "type": "依賴配置",
+        "status": "保留",
+        "reason": "後端依賴配置檔案"
+      },
+      {
+        "file": "package-lock.json (前端)",
+        "type": "鎖定檔案",
+        "status": "保留",
+        "reason": "依賴版本鎖定檔案"
+      },
+      {
+        "file": "package-lock.json (後端)",
+        "type": "鎖定檔案",
+        "status": "保留",
+        "reason": "依賴版本鎖定檔案"
+      }
+    ]
+  },
+  "build_artifacts": {
+    "status": "忽略",
+    "files": [
+      "build/",
+      "node_modules/",
+      "dist/"
+    ],
+    "reason": "構建產物和依賴目錄，不在清理範圍內"
+  },
+  "recommendations": {
+    "safe_to_delete": [
+      "F:\\frontend\\src\\hooks\\ (空目錄)",
+      "F:\\backend\\scripts\\ (空目錄)"
+    ],
+    "keep_important": [
+      "所有 .test.js 檔案",
+      "所有 .config.js 檔案",
+      "所有 package.json 檔案",
+      "所有 package-lock.json 檔案",
+      "src/index.js",
+      "src/setupTests.js",
+      "src/reportWebVitals.js"
+    ],
+    "notes": [
+      "大部分檔案都有實際用途",
+      "空目錄可以安全刪除",
+      "測試相關檔案應保留以維持專案結構",
+      "配置檔案都是必要的"
+    ]
+  },
+  "file_size_analysis": {
+    "small_files": [
+      {
+        "file": "F:\\frontend\\src\\setupTests.js",
+        "size": "約100位元組",
+        "status": "保留"
+      },
+      {
+        "file": "F:\\frontend\\src\\reportWebVitals.js",
+        "size": "約150位元組",
+        "status": "保留"
+      },
+      {
+        "file": "F:\\frontend\\src\\App.test.js",
+        "size": "約200位元組",
+        "status": "保留"
+      }
+    ],
+    "medium_files": [
+      {
+        "file": "F:\\frontend\\src\\index.js",
+        "size": "約300位元組",
+        "status": "保留"
+      }
+    ],
+    "large_files": [
+      {
+        "file": "F:\\frontend\\src\\components\\EventList.js",
+        "size": "約20KB",
+        "status": "保留",
+        "reason": "主要組件，包含大量邏輯"
+      },
+      {
+        "file": "F:\\frontend\\src\\components\\AdminPage.js",
+        "size": "約50KB",
+        "status": "保留",
+        "reason": "管理頁面組件，包含大量功能"
+      }
+    ]
+  }
+}

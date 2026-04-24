@@ -1,0 +1,144 @@
+/* Footer / 頁尾 */
+.site-footer {
+  background: var(--color-primary-dark);
+  color: var(--color-text-white);
+  margin-top: auto;
+}
+
+.footer-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--spacing-lg) var(--spacing-md);
+}
+
+.footer-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.footer-brand {
+  flex-shrink: 0;
+}
+
+.footer-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  margin: 0 0 0.25rem 0;
+}
+
+.footer-subtitle {
+  font-size: var(--font-size-sm);
+  opacity: 0.9;
+  margin: 0;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.footer-link {
+  color: var(--color-text-white);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  transition: opacity 0.2s;
+}
+
+.footer-link:hover {
+  opacity: 0.85;
+  color: var(--color-text-white);
+}
+
+.footer-divider {
+  opacity: 0.5;
+  font-size: 0.875rem;
+}
+
+.footer-contact {
+  font-size: var(--font-size-sm);
+  opacity: 0.95;
+}
+
+.footer-bottom {
+  padding-top: var(--spacing-md);
+}
+
+.footer-views {
+  font-size: var(--font-size-xs);
+  opacity: 0.9;
+  margin: 0;
+  text-align: center;
+}
+
+.footer-views-item {
+  white-space: nowrap;
+}
+
+.footer-views-divider {
+  margin: 0 0.5rem;
+  opacity: 0.6;
+}
+
+.footer-copyright {
+  font-size: var(--font-size-xs);
+  opacity: 0.85;
+  margin: 0.35rem 0 0 0;
+  text-align: center;
+}
+
+.footer-author {
+  font-size: var(--font-size-xs);
+  opacity: 0.8;
+  margin: 0.35rem 0 0 0;
+  text-align: center;
+}
+
+.footer-author-link {
+  color: rgba(255, 255, 255, 0.95);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.footer-author-link:hover {
+  color: var(--color-text-white);
+  opacity: 1;
+}
+
+@media (max-width: 576px) {
+  .footer-main {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .footer-links {
+    justify-content: center;
+  }
+
+  .footer-copyright {
+    font-size: 0.7rem;
+  }
+
+  .footer-author {
+    font-size: 0.7rem;
+  }
+
+  .footer-views {
+    font-size: 0.7rem;
+  }
+
+  .footer-views-item {
+    display: inline-block;
+    margin: 0.15rem 0;
+  }
+
+  .footer-views-divider {
+    display: none;
+  }
+}

@@ -1,0 +1,487 @@
+{
+  "surveys": [
+    {
+      "id": "english_table_feedback_114_1",
+      "surveyType": "ET",
+      "title": "English Table Feedback Questionnaire",
+      "description": "英語桌活動回饋問卷，協助我們持續優化活動體驗。",
+      "questions": [
+        {
+          "id": "grade",
+          "type": "radio",
+          "label": "年級",
+          "options": [
+            "一年級",
+            "二年級",
+            "高年級(大三以上含碩博士)"
+          ],
+          "required": true
+        },
+        {
+          "id": "department",
+          "type": "text",
+          "label": "科系（請填寫就讀科系）",
+          "required": true
+        },
+        {
+          "id": "times_this_semester",
+          "type": "radio",
+          "label": "本學期參與 ET 次數",
+          "options": [
+            "5次以下",
+            "6-10次",
+            "11次以上"
+          ],
+          "required": true
+        },
+        {
+          "id": "q1",
+          "type": "likert",
+          "label": "我能更流利地用英文談論我的個人經驗和意見。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q2",
+          "type": "likert",
+          "label": "我能對個人問題給出更詳細和有趣的回答。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q3",
+          "type": "likert",
+          "label": "我能更精準地使用英文描述圖表訊息或文章內容。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q4",
+          "type": "likert",
+          "label": "我能在活動討論中使用英文整理及表達個人想法。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q5",
+          "type": "likert",
+          "label": "活動進行中，我能使用生活例子來解釋及強化個人觀點。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q6",
+          "type": "likert",
+          "label": "我能將英文將課程主題與現實生活中的例子連結起來。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q7",
+          "type": "likert",
+          "label": "我現在比參加「ET」之前對說英文更有自信。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q8",
+          "type": "likert",
+          "label": "我說英文時比較不緊張或害怕犯錯。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q9",
+          "type": "likert",
+          "label": "我更願意在課堂上或在「ET」以外與他人用英文交談。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q10",
+          "type": "likert",
+          "label": "除修課規定外，我有個人理由參加「ET」活動，例如認識朋友、開口練習英文或者喜歡與他人互動！",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q11",
+          "type": "likert",
+          "label": "每天不同的主題和任務使我更有興趣參與。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q12",
+          "type": "likert",
+          "label": "我計劃未來繼續參加「ET」（或類似活動）。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q13",
+          "type": "likert",
+          "label": "我在討論中會用自己的話總結主要想法。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q14",
+          "type": "likert",
+          "label": "當我無法理解話題內容時，我會主動尋找桌長或其他人協助。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q15",
+          "type": "likert",
+          "label": "我會遵守輪流發言的規範，因為每個人都應該享有開口練習英文的機會。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q16",
+          "type": "likert",
+          "label": "這種由同儕主導、以討論為基礎的模式，幫助我更勇敢開口說英文。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q17",
+          "type": "likert",
+          "label": "「ET」氣氛佳且互動性強，使我說英文時感到很自在。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q18",
+          "type": "likert",
+          "label": "總體來說，「ET」對於提升我的英文口說技能是有益的。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "interview_email",
+          "type": "email",
+          "label": "若願意接受 EMI 中心訪談，請留下聯絡信箱（選填）。",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "english_club_feedback_114_1",
+      "surveyType": "EC",
+      "title": "English Club Feedback Questionnaire",
+      "description": "English Club 活動回饋問卷，協助我們持續優化活動內容。",
+      "questions": [
+        {
+          "id": "department",
+          "type": "text",
+          "label": "系所 Department",
+          "required": true
+        },
+        {
+          "id": "year",
+          "type": "radio",
+          "label": "年級 Year",
+          "options": [
+            "大一 Freshman",
+            "大二 Sophomore",
+            "大三 Junior",
+            "大四 Senior",
+            "研究生及以上 Postgraduate",
+            "其他 Others"
+          ],
+          "required": true
+        },
+        {
+          "id": "reason_attend",
+          "type": "checkbox",
+          "label": "為什麼參加 English Club?",
+          "options": [
+            "課程加分 / 課程要求",
+            "英語實踐歷程集點",
+            "我想提升英文能力",
+            "我想認識並結交新朋友",
+            "其他"
+          ],
+          "required": true
+        },
+        {
+          "id": "information_channel",
+          "type": "checkbox",
+          "label": "透過何種管道得知 English Club?",
+          "options": [
+            "EMI中心官網",
+            "EMI中心 Facebook",
+            "EMI中心 Instagram",
+            "同學口耳相傳"
+          ],
+          "required": true
+        },
+        {
+          "id": "q1",
+          "type": "likert",
+          "label": "整體而言，我對這學期 English Club 感到滿意。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q2",
+          "type": "likert",
+          "label": "活動時間對我來說是方便的。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q3",
+          "type": "likert",
+          "label": "活動地點及位置是合宜的。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q4",
+          "type": "likert",
+          "label": "English Club 主題有助於意見分享及交流。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q5",
+          "type": "likert",
+          "label": "活動指導老師帶領方式有效率、禮貌且專業。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q6",
+          "type": "likert",
+          "label": "活動指導老師鼓勵我開口說英文。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q7",
+          "type": "likert",
+          "label": "English Club 能符合我的學習英文需求。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q8",
+          "type": "likert",
+          "label": "English Club 提升了我學習英文的興趣。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "q9",
+          "type": "likert",
+          "label": "參加 English Club 讓我擴展人際關係。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "ability_improved",
+          "type": "checkbox",
+          "label": "參加 English Club 幫助我提升哪些能力？",
+          "options": [
+            "聽力",
+            "口說",
+            "開口說英文的自信",
+            "其他"
+          ],
+          "required": true
+        },
+        {
+          "id": "ability_description",
+          "type": "textarea",
+          "label": "請簡述您本身英語文能力提升情形",
+          "required": false
+        },
+        {
+          "id": "q10",
+          "type": "likert",
+          "label": "我有意願於未來繼續參加 English Club 活動。",
+          "scale": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "required": true
+        },
+        {
+          "id": "other_comments",
+          "type": "textarea",
+          "label": "如有其他意見，也歡迎告訴我們",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

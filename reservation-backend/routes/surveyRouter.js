@@ -1,0 +1,362 @@
+// routes/surveyRouter.js
+const express = require('express');
+const router = express.Router();
+const ExcelJS = require('exceljs');
+const { EnglishTableSurveyResponse, EnglishClubSurveyResponse, SurveySettings } = require('../models');
+const { authMiddleware, requirePermission, requireSurveyAccess, P } = require('../middlewares/auth');
+const surveyModuleService = require('../services/surveyModuleService');
+const { getCurrentSemester, isValidSemester } = require('../utils/semester');
+
+function resolveLegacyStatsSemester(req) {
+  return req.query.semester && isValidSemester(req.query.semester) ? req.query.semester : getCurrentSemester();
+}
+
+// 載入問卷配置（後台 /config、舊相容）
+const surveysConfig = require('../surveys.json');
+
+/** 統一公開提交錯誤回應 */
+function handlePublicSubmitError(e, res, next) {
+  if (e.statusCode === 400 && e.errorCode) {
+    return res.status(400).json({
+      success: false,
+      errorCode: e.errorCode,
+      message: e.message,
+      error: e.message,
+    });
+  }
+  if (e.statusCode === 400) return res.status(400).json({ error: e.message || e.error });
+  if (e.statusCode === 404) return res.status(404).json({ error: e.message });
+  if (e.statusCode === 403) return res.status(403).json({ code: e.code, message: e.message });
+  return next(e);
+}
+
+// --- 正式公開路徑（與 POST /:surveyId 並存，語意一致）---
+router.get('/public/:surveyKey/status', async (req, res, next) => {
+  try {
+    const st = await surveyModuleService.getPublicStatusPayload(req.params.surveyKey);
+    res.json(st);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/public/:surveyKey', async (req, res, next) => {
+  try {
+    const st = await surveyModuleService.getPublicStatusPayload(req.params.surveyKey);
+    if (!st.ok) {
+      return res.status(st.code === 'not_found' ? 404 : 403).json(st);
+    }
+    const pkg = await surveyModuleService.getPublishedSurveyPackage(req.params.surveyKey);
+    if (!pkg) return res.status(404).json({ error: '找不到問卷' });
+    res.json({
+      survey: pkg.config,
+      meta: {
+        source: pkg.source,
+        versionNumber: pkg.versionNumber,
+        surveyKey: pkg.surveyKey,
+        currentSemester: st.currentSemester,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/public/:surveyKey/responses', async (req, res, next) => {
+  try {
+    const r = await surveyModuleService.submitPublicResponse(req.params.surveyKey, req.body, req);
+    res.json(r);
+  } catch (e) {
+    handlePublicSubmitError(e, res, next);
+  }
+});
+
+// 公開 API：取得啟用中的活動問卷列表（供首頁重要通知與問卷選擇頁使用）
+router.get('/enabled', async (req, res, next) => {
+  try {
+    const settings = await SurveySettings.findAll({
+      where: { isEnabled: true },
+      attributes: ['surveyId', 'surveyName', 'relatedEventTypes', 'startDate', 'endDate']
+    });
+    const now = new Date();
+    const allowedTypes = ['English Table', 'English Club'];
+    const idToType = { survey_1: 'English Table', survey_2: 'English Club', english_table_feedback_114_1: 'English Table', english_club_feedback_114_1: 'English Club' };
+
+    const parseTypes = (s) => {
+      if (Array.isArray(s.relatedEventTypes)) return s.relatedEventTypes;
+      if (typeof s.relatedEventTypes === 'string') {
+        try { return JSON.parse(s.relatedEventTypes); } catch (_) { return []; }
+      }
+      return [];
+    };
+
+    const list = settings
+      .filter(s => {
+        const types = parseTypes(s);
+        const matchByType = types.some(t => allowedTypes.includes(t));
+        const matchById = idToType[s.surveyId];
+        if (!matchByType && !matchById) return false;
+        if (s.startDate && new Date(s.startDate) > now) return false;
+        if (s.endDate && new Date(s.endDate) < now) return false;
+        return true;
+      })
+      .map(s => ({
+        surveyId: s.surveyId === 'survey_1' ? 'english_table_feedback_114_1' : s.surveyId === 'survey_2' ? 'english_club_feedback_114_1' : s.surveyId,
+        surveyName:
+          (s.surveyId === 'survey_1' || s.surveyId === 'english_table_feedback_114_1')
+            ? 'English Table Feedback Questionnaire'
+            : (s.surveyId === 'survey_2' || s.surveyId === 'english_club_feedback_114_1')
+              ? 'English Club Feedback Questionnaire'
+              : s.surveyName,
+        relatedEventTypes: parseTypes(s).length ? parseTypes(s) : (idToType[s.surveyId] ? [idToType[s.surveyId]] : [])
+      }));
+    res.json(list);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 取得問卷配置 API
+router.get('/config', async (req, res, next) => {
+  try {
+    res.json(surveysConfig);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 通用問卷提交 API（保留相容路徑；與 /public/:surveyKey/responses 共用業務邏輯）
+router.post('/:surveyId', async (req, res, next) => {
+  try {
+    const { surveyId } = req.params;
+    if (surveyId === 'enabled' || surveyId === 'config' || surveyId.startsWith('public')) {
+      return res.status(404).json({ error: '無效路徑' });
+    }
+    const r = await surveyModuleService.submitPublicResponse(surveyId, req.body, req);
+    res.json(r);
+  } catch (e) {
+    handlePublicSubmitError(e, res, next);
+  }
+});
+
+// 檢查問卷填寫狀態
+router.get('/check/:surveyId/:studentId', async (req, res, next) => {
+  try {
+    const { surveyId, studentId } = req.params;
+
+    // 參數驗證：確保 studentId 存在且不為空
+    if (!studentId || studentId === undefined || studentId === null || String(studentId).trim() === '') {
+      return res.status(400).json({ 
+        success: false,
+        errorCode: 'MISSING_STUDENT_ID',
+        message: '缺少必要參數：studentId',
+        error: '請提供學號'
+      });
+    }
+
+    let SurveyModel;
+    if (surveyId === 'english_table_feedback_114_1') {
+      SurveyModel = EnglishTableSurveyResponse;
+    } else if (surveyId === 'english_club_feedback_114_1') {
+      SurveyModel = EnglishClubSurveyResponse;
+    } else {
+      return res.status(400).json({ 
+        success: false,
+        errorCode: 'UNSUPPORTED_SURVEY_TYPE',
+        message: '不支援的問卷類型',
+        error: '不支援的問卷類型'
+      });
+    }
+
+    const trimmedStudentId = String(studentId).trim();
+    const semester = getCurrentSemester();
+    const exist = await SurveyModel.findOne({ where: { studentId: trimmedStudentId, semester } });
+    return res.json({ filled: !!exist, semester });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 取得問卷統計（管理員、執行長和English Table負責人可用）
+router.get(
+  '/stats/:surveyId',
+  authMiddleware,
+  requirePermission(P.CAN_VIEW_SURVEYS),
+  requireSurveyAccess('surveyId'),
+  async (req, res, next) => {
+  try {
+    const { surveyId } = req.params;
+    const semester = resolveLegacyStatsSemester(req);
+
+    let SurveyModel;
+    if (surveyId === 'english_table_feedback_114_1') {
+      SurveyModel = EnglishTableSurveyResponse;
+    } else if (surveyId === 'english_club_feedback_114_1') {
+      SurveyModel = EnglishClubSurveyResponse;
+    } else {
+      return res.status(400).json({ error: '不支援的問卷類型' });
+    }
+
+    const surveys = await SurveyModel.findAll({ where: { semester } });
+    const total = surveys.length;
+
+    if (total === 0) {
+      return res.json({
+        totalResponses: 0,
+        message: '尚無問卷回應'
+      });
+    }
+
+    // 計算各題平均分數
+    const questionAverages = {};
+    for (let i = 1; i <= 20; i++) {
+      const questionKey = `q${i}`;
+      const scores = surveys.map(s => s[questionKey]).filter(s => s !== null && s !== undefined);
+      if (scores.length > 0) {
+        questionAverages[questionKey] = (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(2);
+      }
+    }
+
+    // 年級分布
+    const gradeDistribution = {};
+    surveys.forEach(survey => {
+      const grade = survey.grade || survey.year;
+      if (grade) {
+        gradeDistribution[grade] = (gradeDistribution[grade] || 0) + 1;
+      }
+    });
+
+    res.json({
+      semester,
+      totalResponses: total,
+      questionAverages,
+      gradeDistribution,
+      latestResponse: surveys[0]?.createdAt,
+      earliestResponse: surveys[surveys.length - 1]?.createdAt
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 匯出問卷資料至Excel（管理員、執行長和English Table負責人可用）
+router.get(
+  '/export/:surveyId',
+  authMiddleware,
+  requirePermission(P.CAN_EXPORT_SURVEYS),
+  requireSurveyAccess('surveyId'),
+  async (req, res, next) => {
+  try {
+    const { surveyId } = req.params;
+    const semester = resolveLegacyStatsSemester(req);
+
+    let SurveyModel;
+    let fileName;
+    let worksheetName;
+
+    if (surveyId === 'english_table_feedback_114_1') {
+      SurveyModel = EnglishTableSurveyResponse;
+      fileName = 'english-table-survey-responses.xlsx';
+      worksheetName = 'English Table Survey Responses';
+    } else if (surveyId === 'english_club_feedback_114_1') {
+      SurveyModel = EnglishClubSurveyResponse;
+      fileName = 'english-club-survey-responses.xlsx';
+      worksheetName = 'English Club Survey Responses';
+    } else {
+      return res.status(400).json({ error: '不支援的問卷類型' });
+    }
+
+    const surveys = await SurveyModel.findAll({
+      where: { semester },
+      order: [['createdAt', 'DESC']],
+    });
+    
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet(worksheetName);
+
+    // 根據問卷類型定義不同的欄位
+    if (surveyId === 'english_table_feedback_114_1') {
+      ws.columns = [
+        { header: 'ID', key: 'id', width: 10 },
+        { header: '學期', key: 'semester', width: 10 },
+        { header: '學號', key: 'studentId', width: 15 },
+        { header: '姓名', key: 'name', width: 15 },
+        { header: 'Email', key: 'email', width: 25 },
+        { header: '年級', key: 'grade', width: 15 },
+        { header: '科系', key: 'department', width: 20 },
+        { header: 'Q1', key: 'q1', width: 8 },
+        { header: 'Q2', key: 'q2', width: 8 },
+        { header: 'Q3', key: 'q3', width: 8 },
+        { header: 'Q4', key: 'q4', width: 8 },
+        { header: 'Q5', key: 'q5', width: 8 },
+        { header: 'Q6', key: 'q6', width: 8 },
+        { header: 'Q7', key: 'q7', width: 8 },
+        { header: 'Q8', key: 'q8', width: 8 },
+        { header: 'Q9', key: 'q9', width: 8 },
+        { header: 'Q10', key: 'q10', width: 8 },
+        { header: 'Q11', key: 'q11', width: 8 },
+        { header: 'Q12', key: 'q12', width: 8 },
+        { header: 'Q13', key: 'q13', width: 8 },
+        { header: 'Q14', key: 'q14', width: 8 },
+        { header: 'Q15', key: 'q15', width: 8 },
+        { header: 'Q16', key: 'q16', width: 8 },
+        { header: 'Q17', key: 'q17', width: 8 },
+        { header: 'Q18', key: 'q18', width: 8 },
+        { header: '聯絡信箱', key: 'interviewEmail', width: 25 },
+        { header: '填寫時間', key: 'createdAt', width: 20 }
+      ];
+    } else if (surveyId === 'english_club_feedback_114_1') {
+      ws.columns = [
+        { header: 'ID', key: 'id', width: 10 },
+        { header: '學期', key: 'semester', width: 10 },
+        { header: '學號', key: 'studentId', width: 15 },
+        { header: '姓名', key: 'name', width: 15 },
+        { header: 'Email', key: 'email', width: 25 },
+        { header: '系所', key: 'department', width: 20 },
+        { header: '年級', key: 'year', width: 15 },
+        { header: '參加原因', key: 'reasonAttend', width: 30 },
+        { header: '資訊來源', key: 'informationChannel', width: 30 },
+        { header: '能力提升', key: 'abilityImproved', width: 30 },
+        { header: 'Q1', key: 'q1', width: 8 },
+        { header: 'Q2', key: 'q2', width: 8 },
+        { header: 'Q3', key: 'q3', width: 8 },
+        { header: 'Q4', key: 'q4', width: 8 },
+        { header: 'Q5', key: 'q5', width: 8 },
+        { header: 'Q6', key: 'q6', width: 8 },
+        { header: 'Q7', key: 'q7', width: 8 },
+        { header: 'Q8', key: 'q8', width: 8 },
+        { header: 'Q9', key: 'q9', width: 8 },
+        { header: 'Q10', key: 'q10', width: 8 },
+        { header: '能力描述', key: 'abilityDescription', width: 40 },
+        { header: '其他意見', key: 'otherComments', width: 40 },
+        { header: '填寫時間', key: 'createdAt', width: 20 }
+      ];
+    }
+
+    // 填入資料
+    surveys.forEach(survey => {
+      const rowData = survey.toJSON();
+      // 處理 JSON 欄位
+      if (rowData.reasonAttend && Array.isArray(rowData.reasonAttend)) {
+        rowData.reasonAttend = rowData.reasonAttend.join(', ');
+      }
+      if (rowData.informationChannel && Array.isArray(rowData.informationChannel)) {
+        rowData.informationChannel = rowData.informationChannel.join(', ');
+      }
+      if (rowData.abilityImproved && Array.isArray(rowData.abilityImproved)) {
+        rowData.abilityImproved = rowData.abilityImproved.join(', ');
+      }
+      ws.addRow(rowData);
+    });
+
+    // 回傳檔案
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+module.exports = router;

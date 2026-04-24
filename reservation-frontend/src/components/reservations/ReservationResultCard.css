@@ -1,0 +1,55 @@
+.reservation-result-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.reservation-result-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.reservation-result-card-badges {
+  margin-bottom: 0.35rem;
+}
+
+.reservation-result-card-event {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.reservation-result-card-meta {
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.reservation-result-card-meta span + span {
+  margin-left: 0.75rem;
+}
+
+.reservation-result-card-actions {
+  flex-shrink: 0;
+}
+
+.reservation-result-card-cancel-form {
+  max-width: 220px;
+}
+
+.reservation-result-card-cancel-form .form-control {
+  max-width: 150px;
+}
+
+@media (max-width: 576px) {
+  .reservation-result-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

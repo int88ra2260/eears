@@ -1,0 +1,52 @@
+.announcement-detail-page {
+  padding: 1rem 0 2rem;
+}
+
+.announcement-detail-toolbar {
+  max-width: 720px;
+  margin: 0 auto 0.75rem;
+}
+
+.announcement-detail-loading,
+.announcement-detail-error {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.announcement-detail-article {
+  max-width: 720px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.announcement-detail-meta {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+}
+
+.announcement-detail-title {
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.announcement-detail-body {
+  font-size: 1rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin-bottom: 1.5rem;
+  word-break: break-word;
+}
+
+.announcement-detail-cover img {
+  max-height: 360px;
+  object-fit: contain;
+}
+
+.announcement-detail-back {
+  margin-top: 1rem;
+}

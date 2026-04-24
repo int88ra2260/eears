@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>培力英檢報名成功</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft JhengHei', '微軟正黑體', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .success-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .success-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: bounce 1s ease-in-out;
+        }
+        
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+        
+        h1 {
+            color: #28a745;
+            font-size: 32px;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+        
+        .message-content {
+            text-align: left;
+            line-height: 1.8;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .message-content p {
+            margin-bottom: 15px;
+        }
+        
+        .message-content strong {
+            color: #dc3545;
+        }
+        
+        .contact-info {
+            background: #f8f9fa;
+            border-left: 4px solid #FF6B6B;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .contact-info a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        
+        .contact-info a:hover {
+            text-decoration: underline;
+        }
+        
+        .btn-container {
+            margin-top: 30px;
+        }
+        
+        .btn-confirm {
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8787 100%);
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+        }
+        
+        .btn-confirm:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+        }
+        
+        @media (max-width: 768px) {
+            .success-container {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            .message-content {
+                font-size: 14px;
+            }
+            
+            .success-icon {
+                font-size: 60px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="success-container">
+        <div class="success-icon">✅</div>
+        <h1>報名成功！</h1>
+        
+        <div class="message-content">
+            <p>謝謝您的回覆。報名完成後，若資料正常送出，您應該會在報名填寫的 email 收到通知。如有其他疑問，歡迎寄信聯絡我們（<a href="mailto:emicenter@mail.nsysu.edu.tw">emicenter@mail.nsysu.edu.tw</a>），謝謝。</p>
+            
+            <p><strong>如果沒有收到通知，請先確認有無誤分到垃圾信件匣。</strong>若還是沒有，可能沒有正確送出報名資料，請協助重新再報一次名。</p>
+            
+            <p>更多培力考試準備及相關資訊，請見<a href="https://siwan.nsysu.edu.tw/p/406-1029-370165,r5578.php?Lang=zh-tw" target="_blank" rel="noopener noreferrer">全英中心公告</a>。</p>
+            
+            <div class="contact-info">
+                <p><strong>重要提醒：</strong>主辦單位將於考前一至二週以 email 及手機簡訊另行通知您考試的日期及試場，請確認您報名時留的是常收信的 email。如有任何疑問，請洽全英語卓越教學中心（建議優先寄信到 <a href="mailto:emicenter@mail.nsysu.edu.tw">emicenter@mail.nsysu.edu.tw</a>），謝謝。</p>
+            </div>
+        </div>
+        
+        <div class="btn-container">
+            <button class="btn-confirm" onclick="window.close()">確認</button>
+        </div>
+    </div>
+</body>
+</html>

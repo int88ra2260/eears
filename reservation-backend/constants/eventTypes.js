@@ -1,0 +1,28 @@
+// constants/eventTypes.js
+// 活動類型常數定義
+
+const EVENT_TYPES = {
+  ENGLISH_TABLE: 'English Table',
+  JOB_TALK: 'Job Talk',
+  ENGLISH_CLUB: 'English Club',
+  INTERNATIONAL_FORUM: 'International Forum'
+};
+
+const EVENT_TYPE_LIST = Object.values(EVENT_TYPES);
+
+const EVENT_TYPE_ABBREVIATIONS = {
+  [EVENT_TYPES.ENGLISH_TABLE]: 'ET',
+  [EVENT_TYPES.JOB_TALK]: 'JT',
+  [EVENT_TYPES.ENGLISH_CLUB]: 'EC',
+  [EVENT_TYPES.INTERNATIONAL_FORUM]: 'IF'
+};
+
+const DEFAULT_EVENT_TYPE = EVENT_TYPES.ENGLISH_TABLE;
+
+module.exports = {
+  EVENT_TYPES,
+  EVENT_TYPE_LIST,
+  EVENT_TYPE_ABBREVIATIONS,
+  DEFAULT_EVENT_TYPE
+};
+

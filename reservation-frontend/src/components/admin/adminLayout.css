@@ -1,0 +1,159 @@
+/* Phase 2：後台 Sidebar + 主內容區（不重做設計系統，僅 IA 結構） */
+
+.admin-layout-root {
+  display: flex;
+  min-height: calc(100vh - 0px);
+  align-items: stretch;
+}
+
+.admin-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: #f8f9fa;
+  border-right: 1px solid #dee2e6;
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 0;
+  overflow-y: auto;
+}
+
+.admin-sidebar__brand {
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 0.5rem 1rem 0.75rem;
+  border-bottom: 1px solid #dee2e6;
+  margin-bottom: 0.5rem;
+}
+
+.admin-sidebar__nav {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.5rem;
+}
+
+.admin-sidebar__section-label {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #212529;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.admin-sidebar__section-label:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.admin-sidebar__section-label--active {
+  background: rgba(13, 110, 253, 0.12);
+  color: #0d6efd;
+}
+
+.admin-sidebar__chevron {
+  font-size: 0.65rem;
+  opacity: 0.7;
+}
+
+.admin-sidebar__sub {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.35rem 0.5rem;
+}
+
+.admin-sidebar__link {
+  display: block;
+  padding: 0.35rem 0.75rem 0.35rem 1rem;
+  font-size: 0.8125rem;
+  color: #495057;
+  text-decoration: none;
+  border-radius: 0.25rem;
+}
+
+.admin-sidebar__link:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #212529;
+}
+
+.admin-sidebar__link--active {
+  background: #0d6efd;
+  color: #fff;
+  font-weight: 500;
+}
+
+.admin-sidebar__link--active:hover {
+  color: #fff;
+}
+
+.admin-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #dee2e6;
+  background: #fff;
+}
+
+.admin-topbar__title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.admin-page-header {
+  padding: 1rem 1rem 0;
+}
+
+.admin-page-header__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.admin-layout__content {
+  padding: 0 1rem 1.5rem;
+  flex: 1;
+}
+
+.admin-sidebar-toggle {
+  margin-right: 0.5rem;
+}
+
+@media (max-width: 991.98px) {
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1040;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 0 0 1rem rgba(0, 0, 0, 0.15);
+  }
+
+  .admin-sidebar--open {
+    transform: translateX(0);
+  }
+
+  .admin-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1039;
+  }
+}
