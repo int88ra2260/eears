@@ -76,7 +76,7 @@ import AdminEventParticipationStatsPage from './pages/admin/AdminEventParticipat
 import EnglishTestDashboardPage from './pages/admin/EnglishTestDashboardPage';
 import EnglishTestStudentListPage from './pages/admin/EnglishTestStudentListPage';
 import EnglishTestStudentDetailPage from './pages/admin/EnglishTestStudentDetailPage';
-import EnglishTestStudentTimelinePage from './pages/admin/EnglishTestStudentTimelinePage';
+import EnglishTestStudentTimelinePage from './pages/admin/EnglishTestStudentTimelinePage.jsx';
 import EnglishTestRiskPage from './pages/admin/EnglishTestRiskPage';
 import EnglishTestImportHubPage from './pages/admin/EnglishTestImportHubPage';
 import LearningJourneyHubPage from './pages/admin/LearningJourneyHubPage';
