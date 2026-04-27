@@ -51,14 +51,14 @@ export default function EnglishTestStudentDetailPage() {
   return (
     <div className="container-fluid py-3">
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h4 className="mb-0">學生英檢詳細 V2</h4>
+        <h4 className="mb-0">學生英檢詳細資料</h4>
         <div className="d-flex align-items-center gap-2">
           {data?.source ? (
             <span className={`badge ${String(data.source).includes('learning_journey_v3') ? 'bg-info text-dark' : 'bg-secondary'}`}>
-              source: {data.source}
+              資料來源狀態：{String(data.source).includes('learning_journey_v3') ? '學習歷程資料' : '英檢資料'}
             </span>
           ) : null}
-          <Link className="btn btn-outline-secondary" to={`/admin/english-test-v2/students?semesterId=${encodeURIComponent(semesterId)}`}>
+          <Link className="btn btn-outline-secondary" to={`/admin/learning-journey?tab=students&semesterId=${encodeURIComponent(semesterId)}`}>
             返回列表
           </Link>
         </div>

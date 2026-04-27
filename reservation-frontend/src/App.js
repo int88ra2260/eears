@@ -69,8 +69,6 @@ import SystemSettingsPage from './pages/admin/SystemSettingsPage';
 import InternalDiagnosticsPage from './pages/admin/InternalDiagnosticsPage';
 import AdminEventDetailPage from './pages/admin/AdminEventDetailPage';
 import AdminEventParticipationStatsPage from './pages/admin/AdminEventParticipationStatsPage';
-import EnglishTestDashboardPage from './pages/admin/EnglishTestDashboardPage';
-import EnglishTestStudentListPage from './pages/admin/EnglishTestStudentListPage';
 import EnglishTestStudentDetailPage from './pages/admin/EnglishTestStudentDetailPage';
 import EnglishTestStudentTimelinePage from './pages/admin/EnglishTestStudentTimelinePage.jsx';
 import EnglishTestRiskPage from './pages/admin/EnglishTestRiskPage';
@@ -89,7 +87,7 @@ function LegacyClassDetailRedirect({ token }) {
 
 function LegacyEnglishTestStudentRedirect() {
   const { studentId } = useParams();
-  return <Navigate to={`/admin/english-test-tracking/students/${studentId}`} replace />;
+  return <Navigate to={`/admin/learning-journey/students/${studentId}`} replace />;
 }
 
 function LegacyArchiveNotice({ title, replacementPath, replacementLabel, note }) {
@@ -422,7 +420,7 @@ function AppContent() {
               <Route path="surveys/settings" element={<Navigate to="/admin/survey-settings" replace />} />
               <Route path="accounts" element={<Navigate to="/admin/account" replace />} />
               <Route path="system/settings" element={<Navigate to="/admin/settings/system" replace />} />
-              <Route path="english-tests/tracking" element={<Navigate to="/admin/english-test-tracking" replace />} />
+              <Route path="english-tests/tracking" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route path="english-tests" element={<Navigate to="/admin/english-test" replace />} />
               <Route path="operations/participation" element={<AdminEventParticipationStatsPage />} />
               <Route path="operations/:eventId" element={<AdminEventDetailPage />} />
@@ -469,7 +467,9 @@ function AppContent() {
               <Route path="settings/system" element={<SystemSettingsPage />} />
               <Route path="diagnostics" element={<InternalDiagnosticsPage />} />
               <Route path="english-test" element={<EnglishTestManagement />} />
-              <Route path="english-test-tracking" element={<EnglishTestDashboardPage />} />
+              <Route path="english-test-tracking" element={<Navigate to="/admin/learning-journey" replace />} />
+              <Route path="english-test-tracking-v2" element={<Navigate to="/admin/learning-journey" replace />} />
+              <Route path="learning-journey-center" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route
                 path="english-test-tracking/legacy"
                 element={(
@@ -477,14 +477,14 @@ function AppContent() {
                     title="Legacy 英檢追蹤頁已封存"
                     replacementPath="/admin/learning-journey"
                     replacementLabel="英語學習歷程中心"
-                    note="如需檢查過渡期 V2 維運資料，請使用英檢長期追蹤（V2 維運）或 Learning Journey 治理總覽。"
+                    note="如需檢查資料來源與切換狀態，請使用英語學習歷程中心的進階診斷區。"
                   />
                 )}
               />
               <Route path="english-test-v2" element={<Navigate to="/admin/learning-journey" replace />} />
-              <Route path="english-test-v2/students" element={<Navigate to="/admin/english-test-tracking/students" replace />} />
+              <Route path="english-test-v2/students" element={<Navigate to="/admin/learning-journey?tab=students" replace />} />
               <Route path="english-test-v2/students/:studentId" element={<LegacyEnglishTestStudentRedirect />} />
-              <Route path="english-test-tracking/students" element={<EnglishTestStudentListPage />} />
+              <Route path="english-test-tracking/students" element={<Navigate to="/admin/learning-journey?tab=students" replace />} />
               <Route path="english-test-tracking/students/:studentId" element={<EnglishTestStudentDetailPage />} />
               <Route path="english-test-tracking/student-timeline/:studentId" element={<EnglishTestStudentTimelinePage />} />
               <Route path="english-test-tracking/risk" element={<EnglishTestRiskPage />} />

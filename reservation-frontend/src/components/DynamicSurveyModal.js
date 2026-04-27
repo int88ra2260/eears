@@ -11,6 +11,27 @@ const LIKERT_OPTIONS = [
   { value: 5, label: '非常同意 / Strongly Agree' }
 ];
 
+const STUDENT_BASIC_INFO_FIELDS = [
+  {
+    id: 'studentId',
+    type: 'text',
+    label: '學號 / Student ID',
+    placeholder: '請輸入學號 / Please enter your student ID',
+  },
+  {
+    id: 'studentName',
+    type: 'text',
+    label: '姓名 / Name',
+    placeholder: '請輸入姓名 / Please enter your name',
+  },
+  {
+    id: 'studentEmail',
+    type: 'email',
+    label: 'Email',
+    placeholder: '請輸入 Email / Please enter your email',
+  },
+];
+
 export default function DynamicSurveyModal({ show, onClose, onSurveyComplete, userInfo, surveyConfig }) {
   const [formData, setFormData] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -23,6 +44,11 @@ export default function DynamicSurveyModal({ show, onClose, onSurveyComplete, us
     if (show && surveyConfig) {
       const newRefs = {};
       const initialData = {};
+
+      STUDENT_BASIC_INFO_FIELDS.forEach(field => {
+        newRefs[field.id] = React.createRef();
+        initialData[field.id] = userInfo?.[field.id] || '';
+      });
       
       surveyConfig.questions.forEach(question => {
         newRefs[question.id] = React.createRef();
@@ -79,6 +105,27 @@ export default function DynamicSurveyModal({ show, onClose, onSurveyComplete, us
     // 檢查是否有預約資料
     const hasReservationData = userInfo && userInfo.studentId && userInfo.studentName && userInfo.studentEmail;
     console.log('Has reservation data:', hasReservationData);
+
+    if (!hasReservationData) {
+      for (const field of STUDENT_BASIC_INFO_FIELDS) {
+        const value = formData[field.id];
+        if (!value || String(value).trim() === '') {
+          setError(`請填寫：${field.label} / Please fill in: ${field.label}`);
+          refs[field.id]?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return false;
+        }
+      }
+
+      const studentEmail = formData.studentEmail;
+      if (studentEmail && studentEmail.trim().length > 3) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(studentEmail)) {
+          setError('Email格式不正確 / Invalid email format');
+          refs.studentEmail?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return false;
+        }
+      }
+    }
 
     // 檢查必填欄位
     for (const question of surveyConfig.questions) {
@@ -338,6 +385,34 @@ export default function DynamicSurveyModal({ show, onClose, onSurveyComplete, us
 
         {error && <Alert variant="danger">{error}</Alert>}
         {success && <Alert variant="success">{success}</Alert>}
+
+        {!(userInfo && userInfo.studentId && userInfo.studentName && userInfo.studentEmail) && (
+          <Card className="mb-3 border-0 shadow-sm" style={{ backgroundColor: '#fff8e1' }}>
+            <Card.Body className="p-3">
+              <h6 className="fw-bold text-primary mb-3">
+                <i className="fas fa-id-card me-2"></i>
+                學生基本資料 / Student Information
+              </h6>
+              <p className="text-muted small mb-3">
+                問卷需使用學號判斷本學期填答狀態，請確認資料正確。
+              </p>
+              {STUDENT_BASIC_INFO_FIELDS.map(field => (
+                <Form.Group key={field.id} ref={refs[field.id]} className="mb-3">
+                  <Form.Label className="fw-bold">
+                    {field.label}
+                    <span className="text-danger ms-1">*</span>
+                  </Form.Label>
+                  <Form.Control
+                    type={field.type}
+                    placeholder={field.placeholder}
+                    value={formData[field.id] || ''}
+                    onChange={(e) => handleInputChange(field.id, e.target.value)}
+                  />
+                </Form.Group>
+              ))}
+            </Card.Body>
+          </Card>
+        )}
 
         {surveyConfig.questions.map((question, index) => {
           // 檢查是否有預約資料且是學生基本資料欄位

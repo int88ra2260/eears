@@ -21,6 +21,22 @@ function formatDate(value) {
   return d.toLocaleString('zh-TW', { hour12: false });
 }
 
+function buildSkillMap(skillScores = []) {
+  const map = { listening: null, reading: null, speaking: null, writing: null };
+  skillScores.forEach((score) => {
+    const key = String(score?.skill || '').toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(map, key)) {
+      map[key] = score;
+    }
+  });
+  return map;
+}
+
+function skillText(skillScore) {
+  if (!skillScore) return EMPTY;
+  return `${text(skillScore.rawScore ?? skillScore.score)} / ${text(skillScore.cefr || skillScore.cefrLevel)}`;
+}
+
 function downloadJson(filename, data) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -117,6 +133,8 @@ export default function LearningJourneyStudentPage() {
   const courses = Array.isArray(profile?.courses) ? profile.courses : [];
   const timeline = Array.isArray(profile?.timeline) ? profile.timeline : [];
   const dataQuality = Array.isArray(profile?.dataQuality) ? profile.dataQuality : [];
+  const bestSkillsBySemester = profile?.bestSkills || {};
+  const bestSkillRows = Object.values(bestSkillsBySemester).flatMap((rows) => (Array.isArray(rows) ? rows : []));
   const riskHints = useMemo(() => buildRiskHints(profile), [profile]);
   const bestepEvents = timeline.filter((ev) => ['bestep_exam_scores', 'bestep_attendance'].includes(ev.source));
   const otherExamAttempts = [
@@ -266,6 +284,31 @@ export default function LearningJourneyStudentPage() {
             </Section>
           </div>
 
+          <div className="col-12">
+            <Section title="Best Skills">
+              {bestSkillRows.length === 0 ? <EmptyState>尚無四技最佳成績彙整。</EmptyState> : (
+                <div className="table-responsive">
+                  <table className="table table-sm table-bordered mb-0 align-middle">
+                    <thead className="table-light">
+                      <tr><th>學期</th><th>聽力</th><th>閱讀</th><th>口說</th><th>寫作</th></tr>
+                    </thead>
+                    <tbody>
+                      {bestSkillRows.map((row, idx) => (
+                        <tr key={row.id || `${row.semesterId}-${idx}`}>
+                          <td>{text(row.semesterId)}</td>
+                          <td>{text(row.bestListeningCefr)}</td>
+                          <td>{text(row.bestReadingCefr)}</td>
+                          <td>{text(row.bestSpeakingCefr)}</td>
+                          <td>{text(row.bestWritingCefr)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Section>
+          </div>
+
           <div className="col-lg-6">
             <Section title="活動參與">
               {activities.length === 0 ? <EmptyState /> : (
@@ -313,16 +356,23 @@ export default function LearningJourneyStudentPage() {
                 <div className="table-responsive">
                   <table className="table table-sm table-bordered mb-0 align-middle">
                     <thead className="table-light">
-                      <tr><th>日期</th><th>類型/來源</th><th>狀態</th></tr>
+                      <tr><th>日期</th><th>類型/來源</th><th>聽力 raw / CEFR</th><th>閱讀 raw / CEFR</th><th>口說 raw / CEFR</th><th>寫作 raw / CEFR</th><th>狀態</th></tr>
                     </thead>
                     <tbody>
-                      {otherExamAttempts.slice(0, 10).map((attempt, idx) => (
-                        <tr key={attempt.id || idx}>
-                          <td>{text(attempt.testDate || attempt.examDate)}</td>
-                          <td>{text(attempt.testType || attempt.examType || attempt.sourceType || attempt.source)}</td>
-                          <td>{text(attempt.status)}</td>
-                        </tr>
-                      ))}
+                      {otherExamAttempts.slice(0, 20).map((attempt, idx) => {
+                        const scores = buildSkillMap(attempt.skillScores || attempt.scores || []);
+                        return (
+                          <tr key={attempt.id || idx}>
+                            <td>{text(attempt.testDate || attempt.examDate)}</td>
+                            <td>{text(attempt.testType || attempt.examType || attempt.sourceType || attempt.source)}</td>
+                            <td>{skillText(scores.listening)}</td>
+                            <td>{skillText(scores.reading)}</td>
+                            <td>{skillText(scores.speaking)}</td>
+                            <td>{skillText(scores.writing)}</td>
+                            <td>{text(attempt.status)}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -87,8 +87,8 @@ export default function EnglishTestRiskPage() {
           </table>
         </div>
       )}
-      <Link className="btn btn-outline-primary btn-sm" to="/admin/english-test-tracking">
-        前往英檢長期追蹤
+      <Link className="btn btn-outline-primary btn-sm" to="/admin/learning-journey?tab=overview">
+        前往英語學習歷程中心
       </Link>
     </div>
   );

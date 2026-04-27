@@ -1,60 +1,37 @@
-import React, { useCallback, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getLearningJourneyProfile,
   getLearningJourneySemesterDashboard,
-  getLearningJourneyReconciliation,
   getLearningJourneyReadiness,
   getLearningJourneyReadModelStatus,
-  getLearningJourneyDataFreshness,
-  getLearningJourneyGovernanceOverview,
-  getLearningJourneyEnglishTestSummaryV3,
   getLearningJourneyEnglishTestSummaryCompare,
   getLearningJourneyEnglishTestStudentsCompare,
-  getLearningJourneyEnglishTestStudentDetailCompare,
   getLearningJourneyRiskStudents,
-  postLearningJourneySync,
-  postLearningJourneyCourseImportDryRun,
-  postLearningJourneyCourseImportApply,
+  getLearningJourneyDataFreshness,
 } from '../../services/learningJourneyApi';
+import {
+  getSemesters,
+  getSemesterSummary,
+  getSemesterDepartmentStats,
+  getSemesterCefrDistribution,
+  getSemesterDataQuality,
+  getSemesterImportHistories,
+  getSemesterStudents,
+  rebuildSemesterBestSkills,
+} from '../../services/englishTestService';
 
 const EMPTY = '—';
-
-const SYNC_SECTION_OPTIONS = [
-  { key: 'roster', label: '名冊 → student_semester_profiles' },
-  { key: 'exam_registration', label: '培力報名 → exam_registrations（system）' },
-  { key: 'bestep_scores', label: 'BESTEP 成績 → exam_attempts' },
-  { key: 'activities', label: '預約／活動 → activity_participations' },
-];
-
-function hasCode(dataQuality, code) {
-  return Array.isArray(dataQuality) && dataQuality.some((q) => q && q.code === code);
-}
-
-/** diff 全為 0，或人數差 ≤1 且達成率差 ≤0.001 時視為可試切換評估 */
-function isTrialSwitchHintRow(comparePayload) {
-  if (!comparePayload || comparePayload.status === 'error' || !comparePayload.diff) return false;
-  const d = comparePayload.diff;
-  const allZero =
-    d.rosterActiveStudentCount === 0 &&
-    d.validBestScoreStudentCount === 0 &&
-    d.attainedStudentCount === 0 &&
-    Number(d.attainmentRate || 0) === 0;
-  const rateOk = Math.abs(Number(d.attainmentRate || 0)) <= 0.001;
-  const countsTight =
-    Math.abs(d.rosterActiveStudentCount || 0) <= 1 &&
-    Math.abs(d.validBestScoreStudentCount || 0) <= 1 &&
-    Math.abs(d.attainedStudentCount || 0) <= 1;
-  return allZero || (countsTight && rateOk);
-}
-
-/** 學生列表 diff 筆數 <5 且佔比 <5% 時視為可試切換 */
-function isStudentsListTrialHint(payload) {
-  if (!payload || payload.status === 'error') return false;
-  const dc = Number(payload.diffCount || 0);
-  const maxC = Math.max(Number(payload.legacyCount || 0), Number(payload.v3Count || 0), 1);
-  return dc < 5 && dc / maxC < 0.05;
-}
+const HISTORY_KEY = 'english-test-v2-history';
+const TAB_IDS = ['student', 'overview', 'students', 'diagnostics'];
+const SKILL_LABELS = {
+  listening: '聽力',
+  reading: '閱讀',
+  speaking: '口說',
+  writing: '寫作',
+};
+const SKILL_KEYS = Object.keys(SKILL_LABELS);
+const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'NO_DATA'];
 
 function parseJwtPayload(token) {
   try {
@@ -74,2019 +51,1140 @@ function parseJwtPayload(token) {
   }
 }
 
+function pickDefaultSemesterId(list, fallback = '114-1') {
+  if (!Array.isArray(list) || list.length === 0) return fallback;
+  const active = list.find((s) => s && s.isActive === true);
+  return String((active || list[0]).id || (active || list[0]).code || fallback);
+}
+
+function fmtRate(value) {
+  if (value == null) return EMPTY;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return EMPTY;
+  return `${(Math.max(0, Math.min(1, n)) * 100).toFixed(1)}%`;
+}
+
+function text(value) {
+  if (value === null || value === undefined || value === '') return EMPTY;
+  return String(value);
+}
+
+function formatDate(value) {
+  if (!value) return EMPTY;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString('zh-TW', { hour12: false });
+}
+
+function buildSkillMap(skillScores = []) {
+  const map = { listening: null, reading: null, speaking: null, writing: null };
+  skillScores.forEach((score) => {
+    const key = String(score?.skill || '').toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(map, key)) {
+      map[key] = score;
+    }
+  });
+  return map;
+}
+
+function getAttemptSkillText(skillScore) {
+  if (!skillScore) return EMPTY;
+  const raw = skillScore.rawScore ?? skillScore.score ?? EMPTY;
+  const cefr = skillScore.cefr || skillScore.cefrLevel || EMPTY;
+  return `${raw} / ${cefr}`;
+}
+
+function cefrLevelLabel(level) {
+  return level === 'NO_DATA' ? '無' : level;
+}
+
+function cefrLevelColor(level) {
+  if (level === 'NO_DATA') return '#ced4da';
+  if (level === 'A1') return '#9aa5b1';
+  if (level === 'A2') return '#7b8a99';
+  if (level === 'B1') return '#6c7cff';
+  if (level === 'B2') return '#4fa3e8';
+  if (level === 'C1') return '#38c8a8';
+  if (level === 'C2') return '#f0b429';
+  return '#7c6ff0';
+}
+
+function getReadableError(error, fallback) {
+  const message = String(error?.message || fallback || '資料取得失敗，請稍後再試。');
+  return message.replace(/（Request-ID:.*?）/g, '').trim();
+}
+
+function ErrorState({ message, requestId }) {
+  return (
+    <div className="alert alert-danger mb-0">
+      <div className="fw-semibold mb-1">資料取得失敗</div>
+      <div>{message || '系統暫時無法取得資料，請稍後再試或聯絡管理員。'}</div>
+      {requestId ? <div className="small mt-1">錯誤識別碼：{requestId}</div> : null}
+    </div>
+  );
+}
+
+function EmptyState({ children }) {
+  return (
+    <div className="card border-0 bg-light">
+      <div className="card-body text-muted">{children}</div>
+    </div>
+  );
+}
+
+function LoadingState({ children = '正在載入學習歷程資料...' }) {
+  return (
+    <div className="card border-0 bg-light">
+      <div className="card-body d-flex align-items-center gap-2 text-muted">
+        <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+        <span>{children}</span>
+      </div>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, hint }) {
+  return (
+    <div className="col-md-3 col-sm-6">
+      <div className="card h-100">
+        <div className="card-body">
+          <div className="text-muted small">{label}</div>
+          <div className="h4 mb-0">{value ?? EMPTY}</div>
+          {hint ? <div className="small text-muted mt-1">{hint}</div> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileSummary({ profile, studentInput, semesterInput }) {
+  const student = profile?.student || {};
+  const flags = student.aggregateFlags || {};
+  const attempts = Array.isArray(profile?.examAttempts) ? profile.examAttempts : [];
+  const ljsAttempts = Array.isArray(student?.ljsExamAttempts) ? student.ljsExamAttempts : [];
+  const activities = Array.isArray(profile?.activities) ? profile.activities : [];
+  const courses = Array.isArray(profile?.courses) ? profile.courses : [];
+  const timeline = Array.isArray(profile?.timeline) ? profile.timeline : [];
+  const dataQuality = Array.isArray(profile?.dataQuality) ? profile.dataQuality : [];
+  const studentId = student.studentId || studentInput;
+  const hasNoData = dataQuality.some((q) => q?.code === 'NO_STUDENT_AGGREGATE');
+  const bestSkillsBySemester = profile?.bestSkills || {};
+  const selectedBestSkills = Array.isArray(bestSkillsBySemester?.[semesterInput])
+    ? bestSkillsBySemester[semesterInput]
+    : Object.values(bestSkillsBySemester).find((rows) => Array.isArray(rows) && rows.length > 0) || [];
+  const allAttempts = [
+    ...attempts.map((row) => ({ ...row, displaySource: row.source || '英檢紀錄' })),
+    ...ljsAttempts.map((row) => ({ ...row, displaySource: row.sourceType || row.source || '學習歷程紀錄' })),
+  ];
+
+  if (hasNoData) {
+    return <EmptyState>查無此學生於該學期的學習歷程資料。</EmptyState>;
+  }
+
+  return (
+    <div className="row g-3">
+      <div className="col-12">
+        <div className="card">
+          <div className="card-body">
+            <div className="d-flex flex-wrap justify-content-between gap-2">
+              <div>
+                <div className="text-muted small">學生</div>
+                <div className="h5 mb-0">
+                  {studentId || EMPTY}
+                  {student.etStudentMaster?.name ? `　${student.etStudentMaster.name}` : ''}
+                </div>
+              </div>
+              {studentId ? (
+                <Link className="btn btn-outline-primary btn-sm align-self-start" to={`/admin/learning-journey/students/${encodeURIComponent(studentId)}`}>
+                  開啟完整學生頁
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+      <KpiCard label="英檢與 BESTEP 紀錄" value={`${allAttempts.length + Number(flags.bestepScoresCount || 0)} 筆`} />
+      <KpiCard label="活動參與" value={`${activities.length} 筆`} />
+      <KpiCard label="修課紀錄" value={`${courses.length} 筆`} />
+      <KpiCard label="風險提示" value={dataQuality.length ? `${dataQuality.length} 則` : '無'} />
+
+      <div className="col-12">
+        <div className="card">
+          <div className="card-header py-2 fw-semibold">Best Skills</div>
+          <div className="card-body small">
+            {selectedBestSkills.length === 0 ? (
+              <div className="text-muted">尚無此學生的四技最佳成績彙整。</div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-sm table-bordered mb-0 align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th>學期</th>
+                      <th>聽力</th>
+                      <th>閱讀</th>
+                      <th>口說</th>
+                      <th>寫作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedBestSkills.map((row, idx) => (
+                      <tr key={row.id || `${row.semesterId}-${idx}`}>
+                        <td>{text(row.semesterId || semesterInput)}</td>
+                        <td>{text(row.bestListeningCefr)}</td>
+                        <td>{text(row.bestReadingCefr)}</td>
+                        <td>{text(row.bestSpeakingCefr)}</td>
+                        <td>{text(row.bestWritingCefr)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="col-12">
+        <div className="card">
+          <div className="card-header py-2 fw-semibold">Attempts 與 CEFR 明細</div>
+          <div className="card-body small">
+            {allAttempts.length === 0 ? (
+              <div className="text-muted">尚無英檢或 BESTEP attempts 明細。</div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-sm table-bordered mb-0 align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th>日期</th>
+                      <th>類型</th>
+                      <th>聽力 raw / CEFR</th>
+                      <th>閱讀 raw / CEFR</th>
+                      <th>口說 raw / CEFR</th>
+                      <th>寫作 raw / CEFR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allAttempts.slice(0, 20).map((attempt, idx) => {
+                      const scoreMap = buildSkillMap(attempt.skillScores || attempt.scores || []);
+                      return (
+                        <tr key={attempt.id || `${attempt.examDate || attempt.testDate}-${idx}`}>
+                          <td>{text(attempt.examDate || attempt.testDate || attempt.date)}</td>
+                          <td>{text(attempt.examType || attempt.testType || attempt.sourceType || attempt.displaySource)}</td>
+                          {SKILL_KEYS.map((skill) => (
+                            <td key={skill}>{getAttemptSkillText(scoreMap[skill])}</td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="col-lg-6">
+        <div className="card h-100">
+          <div className="card-header py-2 fw-semibold">活動參與與風險狀態</div>
+          <div className="card-body small">
+            {activities.length === 0 ? <div className="text-muted">尚無活動參與或 BESTEP 出席紀錄。</div> : (
+              <ul className="mb-0 ps-3">
+                {activities.slice(0, 8).map((row, idx) => (
+                  <li key={idx}>
+                    {row.kind === 'reservation'
+                      ? `預約：${row.event?.eventType || row.event?.name || '活動'} - ${row.reservation?.checkinStatus || EMPTY}`
+                      : `${row.participation?.activityType || '活動'} - ${row.participation?.attendanceStatus || EMPTY}`}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="col-lg-6">
+        <div className="card h-100">
+          <div className="card-header py-2 fw-semibold">資料摘要</div>
+          <div className="card-body small">
+            <div className="row g-2">
+              <div className="col-6"><span className="text-muted">BESTEP 成績</span><div>{Number(flags.bestepScoresCount || 0)} 筆</div></div>
+              <div className="col-6"><span className="text-muted">BESTEP 出席</span><div>{Number(flags.bestepAttendanceCount || 0)} 筆</div></div>
+              <div className="col-6"><span className="text-muted">培力報名</span><div>{flags.hasExamRegistrations ? '有資料' : '尚無資料'}</div></div>
+              <div className="col-6"><span className="text-muted">達標彙整</span><div>{flags.hasBestSkills ? '有資料' : '尚無資料'}</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="col-12">
+        <div className="card">
+          <div className="card-header py-2 fw-semibold">近期歷程</div>
+          <div className="card-body p-0">
+            {timeline.length === 0 ? <div className="p-3 text-muted small">尚無歷程事件。</div> : (
+              <div className="table-responsive">
+                <table className="table table-sm table-striped mb-0 align-middle">
+                  <thead className="table-light">
+                    <tr><th>日期</th><th>類型</th><th>標題</th><th>狀態</th><th>來源</th></tr>
+                  </thead>
+                  <tbody>
+                    {timeline.slice(0, 40).map((event) => (
+                      <tr key={event.id || `${event.type}-${event.date}-${event.title}`}>
+                        <td>{formatDate(event.date)}</td>
+                        <td>{text(event.type)}</td>
+                        <td>{text(event.title)}</td>
+                        <td>{text(event.status)}</td>
+                        <td>{text(event.source)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SemesterOverview({ dashboard, summary, departmentStats, cefrDistribution, quality, riskData, historyRecords }) {
+  const semester = dashboard?.semesters?.[0] || {};
+  const summaryData = summary || semester;
+  const skills = summaryData.skills || semester.skills || dashboard?.skills || {};
+  const riskItems = Array.isArray(riskData?.items) ? riskData.items : Array.isArray(riskData?.topStudents) ? riskData.topStudents : [];
+
+  if (!dashboard && !summary && !riskData) {
+    return <EmptyState>此區塊尚未取得資料，請點擊「查看學期總覽」。</EmptyState>;
+  }
+
+  const renderCefrBar = (skillStats = {}, total = 0) => {
+    if (!total) return <div className="text-muted small">無名冊人數</div>;
+    const segments = (cefrDistribution?.levels?.length ? cefrDistribution.levels : CEFR_LEVELS)
+      .map((level) => {
+        const count = Number(skillStats?.[level] || 0);
+        const pct = total > 0 ? (count / total) * 100 : 0;
+        return { level, count, pct };
+      })
+      .filter((row) => row.count > 0);
+
+    if (segments.length === 0) {
+      return <div className="text-muted small">尚無 CEFR 分布資料。</div>;
+    }
+
+    return (
+      <div className="d-flex w-100 border rounded overflow-hidden bg-white" style={{ minHeight: 36 }}>
+        {segments.map(({ level, count, pct }) => (
+          <div
+            key={level}
+            title={`${cefrLevelLabel(level)}：${count} 人（${pct.toFixed(1)}%）`}
+            style={{
+              width: `${Math.max(pct, 6)}%`,
+              minWidth: '2.25rem',
+              background: cefrLevelColor(level),
+              color: level === 'NO_DATA' ? '#495057' : '#fff',
+              fontSize: 11,
+              textAlign: 'center',
+              padding: '4px 2px',
+            }}
+          >
+            <div className="fw-semibold">{cefrLevelLabel(level)}</div>
+            <div>{pct.toFixed(1)}%</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="row g-3">
+      <KpiCard label="名冊人數" value={summaryData.rosterActiveCount ?? summaryData.rosterActiveStudentCount ?? 0} />
+      <KpiCard label="有成績人數" value={summaryData.validBestScoreStudentCount ?? 0} />
+      <KpiCard label="達標人數" value={summaryData.attainedStudentCount ?? 0} />
+      <KpiCard label="達標率" value={fmtRate(summaryData.attainmentRate)} />
+
+      <div className="col-lg-7">
+        <div className="card h-100">
+          <div className="card-header py-2 fw-semibold">CEFR 分布與達標率</div>
+          <div className="card-body">
+            {Object.keys(SKILL_LABELS).map((skill) => {
+              const rate = Number(skills?.[skill]?.rate ?? skills?.[skill]?.attainmentRate ?? 0);
+              return (
+                <div className="mb-3" key={skill}>
+                  <div className="d-flex justify-content-between small mb-1">
+                    <span>{SKILL_LABELS[skill]}</span>
+                    <span>{fmtRate(rate)}</span>
+                  </div>
+                  <div className="progress" style={{ height: 10 }}>
+                    <div className="progress-bar" style={{ width: `${Math.max(0, Math.min(rate * 100, 100))}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="col-lg-5">
+        <div className="card h-100">
+          <div className="card-header py-2 fw-semibold">風險學生</div>
+          <div className="card-body small">
+            {riskItems.length === 0 ? <div className="text-muted">目前無高風險學生清單。</div> : (
+              <div className="table-responsive">
+                <table className="table table-sm mb-0 align-middle">
+                  <thead><tr><th>學號</th><th>分數</th><th>原因</th><th>操作</th></tr></thead>
+                  <tbody>
+                    {riskItems.map((row) => (
+                      <tr key={row.studentId}>
+                        <td className="font-monospace">{row.studentId}</td>
+                        <td>{row.riskScore ?? EMPTY}</td>
+                        <td>{(row.reasons || []).map((r) => r.message || r).join('；') || EMPTY}</td>
+                        <td>
+                          <Link className="btn btn-sm btn-outline-primary" to={`/admin/learning-journey/students/${encodeURIComponent(row.studentId)}`}>
+                            查看
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="col-12">
+        <div className="card">
+          <div className="card-header py-2 fw-semibold">各系所統計</div>
+          <div className="card-body p-0">
+            {!Array.isArray(departmentStats?.items) || departmentStats.items.length === 0 ? (
+              <div className="p-3 text-muted small">尚無系所統計資料。</div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-sm table-striped mb-0 align-middle">
+                  <thead className="table-light">
+                    <tr><th>系所</th><th>本國生總數</th><th>有成績</th><th>建檔率</th><th>大一</th><th>大二</th><th>大三</th><th>大四</th></tr>
+                  </thead>
+                  <tbody>
+                    {departmentStats.items.map((row) => (
+                      <tr key={row.department || 'unknown'}>
+                        <td>{row.department || EMPTY}</td>
+                        <td>{row.total ?? 0}</td>
+                        <td>{row.recorded ?? 0}</td>
+                        <td>{fmtRate(row.recordRate)}</td>
+                        {['1', '2', '3', '4'].map((grade) => {
+                          const total = row.grades?.[grade]?.total || 0;
+                          const recorded = row.grades?.[grade]?.recorded || 0;
+                          return <td key={grade}>{total > 0 ? `${recorded}/${total}` : EMPTY}</td>;
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="col-12">
+        <div className="card">
+          <div className="card-header py-2 fw-semibold">完整 CEFR 分布</div>
+          <div className="card-body">
+            {!Array.isArray(cefrDistribution?.grades) || cefrDistribution.grades.length === 0 ? (
+              <div className="text-muted small">尚無 CEFR 分布資料。</div>
+            ) : (
+              cefrDistribution.grades.map((gradeRow) => (
+                <div key={gradeRow.grade} className="mb-3">
+                  <div className="fw-semibold mb-2">年級 {gradeRow.grade}</div>
+                  {SKILL_KEYS.map((skill) => (
+                    <div key={skill} className="d-flex gap-2 align-items-center mb-2">
+                      <div className="small" style={{ width: 72 }}>{SKILL_LABELS[skill]}</div>
+                      <div className="flex-grow-1">{renderCefrBar(gradeRow.skills?.[skill] || {}, Number(gradeRow.total || 0))}</div>
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="col-lg-6">
+        <div className="card h-100">
+          <div className="card-header py-2 fw-semibold">資料品質摘要</div>
+          <div className="card-body">
+            {!quality ? (
+              <div className="text-muted small">尚無資料品質摘要。</div>
+            ) : (
+              <div className="row g-2">
+                <div className="col-6"><div className="text-muted small">名冊人數</div><div className="h5">{quality.kpis?.rosterStudentCount ?? 0}</div></div>
+                <div className="col-6"><div className="text-muted small">無成績學生</div><div className="h5">{quality.kpis?.noScoreStudentCount ?? 0}</div></div>
+                <div className="col-6"><div className="text-muted small">成績覆蓋率</div><div className="h5">{fmtRate(quality.rates?.scoreCoverageRate)}</div></div>
+                <div className="col-6"><div className="text-muted small">名冊完整率</div><div className="h5">{fmtRate(quality.rates?.rosterCompletenessRate)}</div></div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="col-lg-6">
+        <div className="card h-100">
+          <div className="card-header py-2 fw-semibold">歷史快照摘要</div>
+          <div className="card-body small">
+            {!Array.isArray(historyRecords) || historyRecords.length === 0 ? (
+              <div className="text-muted">尚無歷史快照。載入學期總覽後會保留最近指標快照於本機瀏覽器。</div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-sm mb-0 align-middle">
+                  <thead className="table-light"><tr><th>時間</th><th>學期</th><th>名冊</th><th>達標率</th></tr></thead>
+                  <tbody>
+                    {historyRecords.slice(0, 5).map((record) => (
+                      <tr key={record.id}>
+                        <td>{formatDate(record.createdAt)}</td>
+                        <td>{record.semesterId}</td>
+                        <td>{record.summary?.rosterActiveStudentCount ?? record.summary?.rosterActiveCount ?? 0}</td>
+                        <td>{fmtRate(record.summary?.attainmentRate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StudentsTab({ state, filters, onFilterChange, onQuery, onPage }) {
+  const navigate = useNavigate();
+  const { loading, error, requestId, rows, pagination, semesterId, dataSource } = state;
+  const pageSize = Number(pagination.limit || filters.limit || 50);
+  const pageOffset = Number(pagination.offset || filters.offset || 0);
+
+  return (
+    <div>
+      <div className="card mb-3">
+        <div className="card-body">
+          <div className="row g-2 align-items-end">
+            <div className="col-md-3">
+              <label className="form-label small">關鍵字</label>
+              <input className="form-control" value={filters.keyword} onChange={(e) => onFilterChange({ keyword: e.target.value })} placeholder="學號、姓名或系所" />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label small">年級</label>
+              <input className="form-control" value={filters.grade} onChange={(e) => onFilterChange({ grade: e.target.value })} />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small">系所</label>
+              <input className="form-control" value={filters.department} onChange={(e) => onFilterChange({ department: e.target.value })} />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label small">達標</label>
+              <select className="form-select" value={filters.attained} onChange={(e) => onFilterChange({ attained: e.target.value })}>
+                <option value="">全部</option>
+                <option value="true">是</option>
+                <option value="false">否</option>
+              </select>
+            </div>
+            <div className="col-md-2">
+              <button type="button" className="btn btn-primary w-100" disabled={loading || !semesterId} onClick={() => onQuery({ offset: 0 })}>
+                查詢學生名單
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {loading ? <LoadingState>正在載入學生名單...</LoadingState> : null}
+      {error ? <ErrorState message={error} requestId={requestId} /> : null}
+      {!loading && !error && rows.length === 0 ? <EmptyState>此區塊尚未串接完整資料，請先使用學生查詢或學期總覽。</EmptyState> : null}
+
+      {!loading && rows.length > 0 ? (
+        <>
+          {dataSource ? (
+            <div className="mb-2">
+              <span className="badge bg-info text-dark">
+                資料來源狀態：{String(dataSource).includes('learning_journey') ? '學習歷程資料' : '英檢資料'}
+              </span>
+            </div>
+          ) : null}
+          <div className="table-responsive">
+            <table className="table table-striped table-hover align-middle">
+              <thead className="table-light">
+                <tr>
+                  <th>學號</th><th>姓名</th><th>年級</th><th>系所</th>
+                  <th>聽力</th><th>閱讀</th><th>口說</th><th>寫作</th><th>達標</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr
+                    key={row.studentId}
+                    onClick={() => navigate(`/admin/learning-journey/students/${encodeURIComponent(row.studentId)}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td className="font-monospace">{row.studentId}</td>
+                    <td>{row.studentName || EMPTY}</td>
+                    <td>{row.grade || EMPTY}</td>
+                    <td>{row.department || EMPTY}</td>
+                    <td>{row.bestListeningCefr || EMPTY}</td>
+                    <td>{row.bestReadingCefr || EMPTY}</td>
+                    <td>{row.bestSpeakingCefr || EMPTY}</td>
+                    <td>{row.bestWritingCefr || EMPTY}</td>
+                    <td>{row.attained ? '是' : '否'}</td>
+                    <td>
+                      <Link
+                        className="btn btn-sm btn-outline-primary"
+                        to={`/admin/learning-journey/students/${encodeURIComponent(row.studentId)}`}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        查看
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+            <div className="small text-muted">
+              每頁 {pageSize} 筆；目前回傳 {pagination.returned || rows.length} 筆
+            </div>
+            <div className="d-flex gap-2">
+              <button type="button" className="btn btn-sm btn-outline-secondary" disabled={loading || pageOffset <= 0} onClick={() => onPage(Math.max(0, pageOffset - pageSize))}>
+                上一頁
+              </button>
+              <button type="button" className="btn btn-sm btn-outline-secondary" disabled={loading || Number(pagination.returned || 0) < pageSize} onClick={() => onPage(pageOffset + pageSize)}>
+                下一頁
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function DiagnosticsPanel({
+  canViewDiagnostics,
+  diagnostics,
+  importHistories,
+  quality,
+  rebuilding,
+  rebuildResult,
+  rebuildError,
+  onRebuild,
+  onLoadStatus,
+  onLoadReadiness,
+  onLoadSummaryCompare,
+  onLoadStudentsCompare,
+}) {
+  if (!canViewDiagnostics) return null;
+
+  return (
+    <details className="card mt-3">
+      <summary className="card-header py-2 fw-semibold" style={{ cursor: 'pointer' }}>
+        系統診斷與資料來源檢查（進階）
+      </summary>
+      <div className="card-body small">
+        {/* TODO: 若後續新增 developer role，將此區塊改為 developer-only。 */}
+        <p className="text-muted">
+          此區提供資料來源狀態、資料切換檢查與資料一致性比對；預設收合，僅供高權限維運使用。
+        </p>
+        <div className="alert alert-light border py-2">
+          匯入作業請使用既有匯入頁：
+          <Link className="ms-1" to="/admin/english-test/import">前往 BESTEP 資料匯入</Link>
+        </div>
+        <div className="d-flex flex-wrap gap-2 mb-3">
+          <button type="button" className="btn btn-warning btn-sm" disabled={rebuilding} onClick={onRebuild}>
+            {rebuilding ? '重新計算中...' : '重新計算最佳成績'}
+          </button>
+        </div>
+        {rebuildError ? <ErrorState message={rebuildError} /> : null}
+        {rebuildResult ? (
+          <div className="alert alert-success py-2">
+            重新計算完成
+            {rebuildResult.studentsProcessed != null ? `，已處理 ${rebuildResult.studentsProcessed} 人` : ''}
+            {rebuildResult.recomputed != null ? `，更新 ${rebuildResult.recomputed} 筆最佳成績` : ''}。
+          </div>
+        ) : null}
+
+        <div className="row g-3 mb-3">
+          <div className="col-lg-6">
+            <div className="border rounded p-2 h-100">
+              <div className="fw-semibold mb-2">匯入歷程</div>
+              {!Array.isArray(importHistories) || importHistories.length === 0 ? (
+                <div className="text-muted">尚無匯入歷程資料。</div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-sm mb-0 align-middle">
+                    <thead className="table-light"><tr><th>時間</th><th>名稱</th><th>匯入</th><th>新增達標</th></tr></thead>
+                    <tbody>
+                      {importHistories.slice(0, 10).map((row) => {
+                        const newB2 = row.newB2BySkill || {};
+                        return (
+                          <tr key={row.id || row.importBatchId || row.importedAt}>
+                            <td>{formatDate(row.importedAt)}</td>
+                            <td>{row.importName || EMPTY}</td>
+                            <td>{row.importedCount ?? 0}</td>
+                            <td>{`${newB2.listening || 0}/${newB2.reading || 0}/${newB2.speaking || 0}/${newB2.writing || 0}`}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="col-lg-6">
+            <div className="border rounded p-2 h-100">
+              <div className="fw-semibold mb-2">資料品質</div>
+              {!quality ? (
+                <div className="text-muted">尚無資料品質資料，請先查看學期總覽。</div>
+              ) : (
+                <div className="row g-2">
+                  <div className="col-6"><span className="text-muted">無成績學生</span><div className="fw-semibold">{quality.kpis?.noScoreStudentCount ?? 0}</div></div>
+                  <div className="col-6"><span className="text-muted">孤兒 BestSkill</span><div className="fw-semibold">{quality.kpis?.orphanBestSkillCount ?? 0}</div></div>
+                  <div className="col-6"><span className="text-muted">成績覆蓋率</span><div className="fw-semibold">{fmtRate(quality.rates?.scoreCoverageRate)}</div></div>
+                  <div className="col-6"><span className="text-muted">名冊完整率</span><div className="fw-semibold">{fmtRate(quality.rates?.rosterCompletenessRate)}</div></div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="d-flex flex-wrap gap-2 mb-3">
+          <button type="button" className="btn btn-outline-primary btn-sm" disabled={diagnostics.status.loading} onClick={onLoadStatus}>
+            讀取資料來源狀態
+          </button>
+          <button type="button" className="btn btn-outline-primary btn-sm" disabled={diagnostics.readiness.loading} onClick={onLoadReadiness}>
+            執行資料切換檢查
+          </button>
+          <button type="button" className="btn btn-outline-primary btn-sm" disabled={diagnostics.summaryCompare.loading} onClick={onLoadSummaryCompare}>
+            執行學期摘要一致性比對
+          </button>
+          <button type="button" className="btn btn-outline-primary btn-sm" disabled={diagnostics.studentsCompare.loading} onClick={onLoadStudentsCompare}>
+            執行學生名單一致性比對
+          </button>
+        </div>
+
+        {['status', 'readiness', 'summaryCompare', 'studentsCompare'].map((key) => {
+          const item = diagnostics[key];
+          return (
+            <div className="border rounded p-2 mb-2" key={key}>
+              <div className="fw-semibold mb-1">
+                {{
+                  status: '資料來源狀態',
+                  readiness: '資料切換檢查',
+                  summaryCompare: '學期摘要一致性比對',
+                  studentsCompare: '學生名單一致性比對',
+                }[key]}
+              </div>
+              {item.loading ? <div className="text-muted">檢查中...</div> : null}
+              {item.error ? <ErrorState message={item.error} requestId={item.requestId} /> : null}
+              {item.data ? (
+                <pre className="bg-light rounded p-2 mb-0 text-break" style={{ maxHeight: 240, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
+                  {JSON.stringify(item.data, null, 2)}
+                </pre>
+              ) : !item.loading && !item.error ? (
+                <div className="text-muted">尚未執行檢查。</div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
+
 export default function LearningJourneyHubPage() {
   const token = localStorage.getItem('token') || '';
   const role = (localStorage.getItem('userRole') || '').toLowerCase();
   const tokenPayload = parseJwtPayload(token) || {};
   const teacherLevel = String(tokenPayload.teacherLevel || '').toLowerCase();
-  const isSuperAdmin = role === 'admin';
-  const isAdminPlus = isSuperAdmin || (role === 'teacher' && (teacherLevel === 'executive' || teacherLevel === 'et_manager'));
-  const [operationMode, setOperationMode] = useState(isSuperAdmin ? 'advanced' : 'operation');
-  const [studentInput, setStudentInput] = useState('');
-  const [semesterInput, setSemesterInput] = useState('114-1');
-  const [profile, setProfile] = useState(null);
-  const [dashboard, setDashboard] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [requestId, setRequestId] = useState('');
-  const [searched, setSearched] = useState(false);
-  const [debugOpen, setDebugOpen] = useState(false);
-  const [reconData, setReconData] = useState(null);
-  const [reconLoading, setReconLoading] = useState(false);
-  const [reconError, setReconError] = useState('');
-  const [reconRequestId, setReconRequestId] = useState('');
-  const [syncSectionsSel, setSyncSectionsSel] = useState(() =>
-    SYNC_SECTION_OPTIONS.reduce((acc, s) => {
-      acc[s.key] = true;
-      return acc;
-    }, {})
-  );
-  const [syncResult, setSyncResult] = useState(null);
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [syncError, setSyncError] = useState('');
-  const [syncRequestId, setSyncRequestId] = useState('');
-  const [courseImportFile, setCourseImportFile] = useState(null);
-  const [courseImportDryRun, setCourseImportDryRun] = useState(null);
-  const [courseImportApply, setCourseImportApply] = useState(null);
-  const [courseImportLoading, setCourseImportLoading] = useState(false);
-  const [courseImportError, setCourseImportError] = useState('');
-  const [courseImportRequestId, setCourseImportRequestId] = useState('');
-  const [compareData, setCompareData] = useState(null);
-  const [compareLoading, setCompareLoading] = useState(false);
-  const [compareError, setCompareError] = useState('');
-  const [compareRequestId, setCompareRequestId] = useState('');
-  const [studCompareData, setStudCompareData] = useState(null);
-  const [studCompareLoading, setStudCompareLoading] = useState(false);
-  const [studCompareError, setStudCompareError] = useState('');
-  const [studCompareRequestId, setStudCompareRequestId] = useState('');
-  const [detailCompareStudentInput, setDetailCompareStudentInput] = useState('');
-  const [detailCompareData, setDetailCompareData] = useState(null);
-  const [detailCompareLoading, setDetailCompareLoading] = useState(false);
-  const [detailCompareError, setDetailCompareError] = useState('');
-  const [detailCompareRequestId, setDetailCompareRequestId] = useState('');
-  const [readinessData, setReadinessData] = useState(null);
-  const [readinessLoading, setReadinessLoading] = useState(false);
-  const [readinessError, setReadinessError] = useState('');
-  const [readinessRequestId, setReadinessRequestId] = useState('');
-  const [readModelStatusData, setReadModelStatusData] = useState(null);
-  const [readModelStatusLoading, setReadModelStatusLoading] = useState(false);
-  const [readModelStatusError, setReadModelStatusError] = useState('');
-  const [readModelStatusRequestId, setReadModelStatusRequestId] = useState('');
-  const [freshnessData, setFreshnessData] = useState(null);
-  const [freshnessLoading, setFreshnessLoading] = useState(false);
-  const [freshnessError, setFreshnessError] = useState('');
-  const [freshnessRequestId, setFreshnessRequestId] = useState('');
-  const [governanceData, setGovernanceData] = useState(null);
-  const [governanceLoading, setGovernanceLoading] = useState(false);
-  const [governanceError, setGovernanceError] = useState('');
-  const [governanceRequestId, setGovernanceRequestId] = useState('');
-  const [formalSummary, setFormalSummary] = useState(null);
-  const [riskData, setRiskData] = useState(null);
-  const [formalLoading, setFormalLoading] = useState(false);
-  const [formalError, setFormalError] = useState('');
+  const canViewDiagnostics = role === 'admin' || teacherLevel === 'executive' || teacherLevel === 'et_manager';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = TAB_IDS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'student';
+
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [studentInput, setStudentInput] = useState(searchParams.get('studentId') || '');
+  const [semesterInput, setSemesterInput] = useState(searchParams.get('semesterId') || '114-1');
+  const [semesters, setSemesters] = useState([]);
+  const [profileState, setProfileState] = useState({ status: 'idle', data: null, error: '', requestId: '' });
+  const [overviewState, setOverviewState] = useState({
+    status: 'idle',
+    dashboard: null,
+    summary: null,
+    departmentStats: null,
+    cefrDistribution: null,
+    quality: null,
+    importHistories: [],
+    risk: null,
+    error: '',
+    requestId: '',
+  });
+  const [historyRecords, setHistoryRecords] = useState([]);
+  const [studentFilters, setStudentFilters] = useState({ keyword: '', grade: '', department: '', attained: '', limit: 50, offset: 0 });
+  const [studentsState, setStudentsState] = useState({ loading: false, error: '', requestId: '', rows: [], pagination: {}, semesterId: semesterInput, dataSource: '' });
+  const [rebuilding, setRebuilding] = useState(false);
+  const [rebuildResult, setRebuildResult] = useState(null);
+  const [rebuildError, setRebuildError] = useState('');
+  const [diagnostics, setDiagnostics] = useState({
+    status: { loading: false, data: null, error: '', requestId: '' },
+    readiness: { loading: false, data: null, error: '', requestId: '' },
+    summaryCompare: { loading: false, data: null, error: '', requestId: '' },
+    studentsCompare: { loading: false, data: null, error: '', requestId: '' },
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const list = await getSemesters(token);
+        if (!mounted) return;
+        setSemesters(Array.isArray(list) ? list : []);
+        setSemesterInput((prev) => prev || pickDefaultSemesterId(list));
+      } catch (_) {
+        // 學期清單失敗時仍保留手動輸入。
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      setHistoryRecords(Array.isArray(parsed) ? parsed : []);
+    } catch (_) {
+      setHistoryRecords([]);
+    }
+  }, []);
+
+  const syncQuery = useCallback((tab, extra = {}) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', tab);
+    if (semesterInput) next.set('semesterId', semesterInput);
+    if (studentInput.trim()) next.set('studentId', studentInput.trim());
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === '') next.delete(key);
+      else next.set(key, String(value));
+    });
+    setSearchParams(next, { replace: true });
+  }, [searchParams, semesterInput, studentInput, setSearchParams]);
+
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    syncQuery(tab);
+  };
 
   const loadProfile = useCallback(async () => {
     const sid = studentInput.trim();
     if (!sid) {
-      setError('請輸入學號');
-      setRequestId('');
+      setProfileState({ status: 'error', data: null, error: '請先輸入學生學號。', requestId: '' });
       return;
     }
-    setLoading(true);
-    setError('');
-    setRequestId('');
-    setSearched(true);
+    setActiveTab('student');
+    syncQuery('student');
+    setProfileState({ status: 'loading', data: null, error: '', requestId: '' });
     try {
       const data = await getLearningJourneyProfile(token, sid);
-      setProfile(data);
-    } catch (e) {
-      setProfile(null);
-      setError(e.message || '載入失敗');
-      setRequestId(e.requestId || '');
-    } finally {
-      setLoading(false);
+      const dataQuality = Array.isArray(data?.dataQuality) ? data.dataQuality : [];
+      const noStudent = dataQuality.some((q) => q?.code === 'NO_STUDENT_AGGREGATE');
+      setProfileState({ status: noStudent ? 'empty' : 'success', data, error: '', requestId: '' });
+    } catch (error) {
+      setProfileState({ status: 'error', data: null, error: getReadableError(error, '學生學習歷程取得失敗。'), requestId: error.requestId || '' });
     }
-  }, [studentInput, token]);
+  }, [studentInput, syncQuery, token]);
 
-  const selectedSyncSections = useCallback(() => {
-    return SYNC_SECTION_OPTIONS.map((s) => s.key).filter((k) => syncSectionsSel[k]);
-  }, [syncSectionsSel]);
-
-  const runLearningJourneySync = useCallback(
-    async (dryRun) => {
-      const sem = semesterInput.trim();
-      if (!sem) {
-        setSyncError('請輸入學期代碼');
-        setSyncRequestId('');
-        return;
-      }
-      const sections = selectedSyncSections();
-      if (sections.length === 0) {
-        setSyncError('請至少勾選一個同步區塊');
-        setSyncRequestId('');
-        return;
-      }
-      setSyncLoading(true);
-      setSyncError('');
-      setSyncRequestId('');
-      try {
-        const data = await postLearningJourneySync(token, { semesterId: sem, sections, dryRun });
-        setSyncResult(data);
-      } catch (e) {
-        setSyncResult(null);
-        setSyncError(e.message || '同步失敗');
-        setSyncRequestId(e.requestId || '');
-      } finally {
-        setSyncLoading(false);
-      }
-    },
-    [semesterInput, selectedSyncSections, token]
-  );
-
-  const applySyncThenReconcile = useCallback(async () => {
-    const sem = semesterInput.trim();
-    if (!sem) {
-      setSyncError('請輸入學期代碼');
-      setSyncRequestId('');
+  const loadOverview = useCallback(async () => {
+    const semesterId = semesterInput.trim();
+    if (!semesterId) {
+      setOverviewState({ status: 'error', dashboard: null, risk: null, error: '請先選擇或輸入學期。', requestId: '' });
       return;
     }
-    const sections = selectedSyncSections();
-    if (sections.length === 0) {
-      setSyncError('請至少勾選一個同步區塊');
-      setSyncRequestId('');
-      return;
-    }
-    setSyncLoading(true);
-    setSyncError('');
-    setSyncRequestId('');
-    setReconError('');
-    setReconRequestId('');
+    setActiveTab('overview');
+    syncQuery('overview');
+    setOverviewState((prev) => ({ ...prev, status: 'loading', error: '', requestId: '' }));
     try {
-      const data = await postLearningJourneySync(token, { semesterId: sem, sections, dryRun: false });
-      setSyncResult(data);
-    } catch (e) {
-      setSyncError(e.message || '同步失敗');
-      setSyncRequestId(e.requestId || '');
-      setSyncLoading(false);
-      return;
-    }
-    try {
-      const recon = await getLearningJourneyReconciliation(token, sem);
-      setReconData(recon);
-    } catch (e) {
-      setReconError(e.message || '對帳載入失敗');
-      setReconRequestId(e.requestId || '');
-    } finally {
-      setSyncLoading(false);
-    }
-  }, [semesterInput, selectedSyncSections, token]);
-
-  const runCourseImportDryRun = useCallback(async () => {
-    if (!courseImportFile) {
-      setCourseImportError('請先選擇修課紀錄 Excel 檔');
-      setCourseImportRequestId('');
-      return;
-    }
-    setCourseImportLoading(true);
-    setCourseImportError('');
-    setCourseImportRequestId('');
-    setCourseImportApply(null);
-    try {
-      const data = await postLearningJourneyCourseImportDryRun(token, courseImportFile);
-      setCourseImportDryRun(data);
-    } catch (e) {
-      setCourseImportDryRun(null);
-      setCourseImportError(e.message || '修課 dry run 失敗');
-      setCourseImportRequestId(e.requestId || '');
-    } finally {
-      setCourseImportLoading(false);
-    }
-  }, [courseImportFile, token]);
-
-  const runCourseImportApply = useCallback(async () => {
-    if (!courseImportFile) {
-      setCourseImportError('請先選擇修課紀錄 Excel 檔');
-      setCourseImportRequestId('');
-      return;
-    }
-    if (!courseImportDryRun) {
-      setCourseImportError('請先執行 dry run，確認結果後再 apply');
-      setCourseImportRequestId('');
-      return;
-    }
-    const hasBlockingIssues =
-      Number(courseImportDryRun.invalidRows || 0) > 0 || Number(courseImportDryRun.duplicateRows || 0) > 0;
-    if (hasBlockingIssues) {
-      setCourseImportError('dry run 顯示仍有錯誤或重複列，請修正檔案後再 apply');
-      setCourseImportRequestId('');
-      return;
-    }
-    const ok = window.confirm('確定要正式寫入修課紀錄？此操作會建立或更新 courses / course_enrollments。');
-    if (!ok) return;
-    setCourseImportLoading(true);
-    setCourseImportError('');
-    setCourseImportRequestId('');
-    try {
-      const data = await postLearningJourneyCourseImportApply(token, courseImportFile);
-      setCourseImportApply(data);
-    } catch (e) {
-      setCourseImportApply(null);
-      setCourseImportError(e.message || '修課 apply 失敗');
-      setCourseImportRequestId(e.requestId || '');
-    } finally {
-      setCourseImportLoading(false);
-    }
-  }, [courseImportDryRun, courseImportFile, token]);
-
-  const loadEnglishTestSummaryCompare = useCallback(async () => {
-    const sem = semesterInput.trim();
-    if (!sem) {
-      setCompareError('請輸入學期代碼');
-      setCompareRequestId('');
-      return;
-    }
-    setCompareLoading(true);
-    setCompareError('');
-    setCompareRequestId('');
-    try {
-      const data = await getLearningJourneyEnglishTestSummaryCompare(token, sem);
-      setCompareData(data);
-    } catch (e) {
-      setCompareData(null);
-      setCompareError(e.message || '比較載入失敗');
-      setCompareRequestId(e.requestId || '');
-    } finally {
-      setCompareLoading(false);
-    }
-  }, [semesterInput, token]);
-
-  const loadEnglishTestStudentsCompare = useCallback(async () => {
-    const sem = semesterInput.trim();
-    if (!sem) {
-      setStudCompareError('請輸入學期代碼');
-      setStudCompareRequestId('');
-      return;
-    }
-    setStudCompareLoading(true);
-    setStudCompareError('');
-    setStudCompareRequestId('');
-    try {
-      const data = await getLearningJourneyEnglishTestStudentsCompare(token, sem);
-      setStudCompareData(data);
-    } catch (e) {
-      setStudCompareData(null);
-      setStudCompareError(e.message || '學生列表比較失敗');
-      setStudCompareRequestId(e.requestId || '');
-    } finally {
-      setStudCompareLoading(false);
-    }
-  }, [semesterInput, token]);
-
-  const loadEnglishTestStudentDetailCompare = useCallback(async () => {
-    const sem = semesterInput.trim();
-    const sid = detailCompareStudentInput.trim();
-    if (!sem) {
-      setDetailCompareError('請輸入學期代碼（與上方「學期」共用）');
-      setDetailCompareRequestId('');
-      return;
-    }
-    if (!sid) {
-      setDetailCompareError('請輸入學號');
-      setDetailCompareRequestId('');
-      return;
-    }
-    setDetailCompareLoading(true);
-    setDetailCompareError('');
-    setDetailCompareRequestId('');
-    try {
-      const data = await getLearningJourneyEnglishTestStudentDetailCompare(token, sem, sid);
-      setDetailCompareData(data);
-    } catch (e) {
-      setDetailCompareData(null);
-      setDetailCompareError(e.message || '學生詳情比較失敗');
-      setDetailCompareRequestId(e.requestId || '');
-    } finally {
-      setDetailCompareLoading(false);
-    }
-  }, [semesterInput, detailCompareStudentInput, token]);
-
-  const loadReconciliation = useCallback(async () => {
-    const sem = semesterInput.trim();
-    if (!sem) {
-      setReconError('請輸入學期代碼');
-      setReconRequestId('');
-      return;
-    }
-    setReconLoading(true);
-    setReconError('');
-    setReconRequestId('');
-    try {
-      const data = await getLearningJourneyReconciliation(token, sem);
-      setReconData(data);
-    } catch (e) {
-      setReconData(null);
-      setReconError(e.message || '對帳載入失敗');
-      setReconRequestId(e.requestId || '');
-    } finally {
-      setReconLoading(false);
-    }
-  }, [semesterInput, token]);
-
-  const loadReadiness = useCallback(async () => {
-    const sem = semesterInput.trim();
-    if (!sem) {
-      setReadinessError('請輸入學期代碼');
-      setReadinessRequestId('');
-      return;
-    }
-    setReadinessLoading(true);
-    setReadinessError('');
-    setReadinessRequestId('');
-    try {
-      const data = await getLearningJourneyReadiness(token, sem);
-      setReadinessData(data);
-    } catch (e) {
-      setReadinessData(null);
-      setReadinessError(e.message || '準備度檢查失敗');
-      setReadinessRequestId(e.requestId || '');
-    } finally {
-      setReadinessLoading(false);
-    }
-  }, [semesterInput, token]);
-
-  const loadReadModelStatus = useCallback(async () => {
-    setReadModelStatusLoading(true);
-    setReadModelStatusError('');
-    setReadModelStatusRequestId('');
-    try {
-      const data = await getLearningJourneyReadModelStatus(token);
-      setReadModelStatusData(data);
-    } catch (e) {
-      setReadModelStatusData(null);
-      setReadModelStatusError(e.message || '載入 read model 狀態失敗');
-      setReadModelStatusRequestId(e.requestId || '');
-    } finally {
-      setReadModelStatusLoading(false);
-    }
-  }, [token]);
-
-  const loadDataFreshness = useCallback(async () => {
-    const sem = semesterInput.trim();
-    if (!sem) {
-      setFreshnessError('請輸入學期代碼');
-      setFreshnessRequestId('');
-      return;
-    }
-    setFreshnessLoading(true);
-    setFreshnessError('');
-    setFreshnessRequestId('');
-    try {
-      const data = await getLearningJourneyDataFreshness(token, sem);
-      setFreshnessData(data);
-    } catch (e) {
-      setFreshnessData(null);
-      setFreshnessError(e.message || '資料新鮮度檢查失敗');
-      setFreshnessRequestId(e.requestId || '');
-    } finally {
-      setFreshnessLoading(false);
-    }
-  }, [semesterInput, token]);
-
-  const loadGovernanceOverview = useCallback(async () => {
-    const sem = semesterInput.trim();
-    if (!sem) {
-      setGovernanceError('請輸入學期代碼');
-      setGovernanceRequestId('');
-      return;
-    }
-    setGovernanceLoading(true);
-    setGovernanceError('');
-    setGovernanceRequestId('');
-    try {
-      const data = await getLearningJourneyGovernanceOverview(token, sem);
-      setGovernanceData(data);
-      if (data.freshness && Array.isArray(data.freshness.sections)) setFreshnessData(data.freshness);
-      if (data.risk) setRiskData({ ...(data.risk || {}), items: data.risk.topStudents || [] });
-    } catch (e) {
-      setGovernanceData(null);
-      setGovernanceError(e.message || '治理摘要載入失敗');
-      setGovernanceRequestId(e.requestId || '');
-    } finally {
-      setGovernanceLoading(false);
-    }
-  }, [semesterInput, token]);
-
-  const loadDashboard = useCallback(async () => {
-    const sem = semesterInput.trim();
-    if (!sem) {
-      setError('請輸入學期代碼');
-      setRequestId('');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    setRequestId('');
-    try {
-      const data = await getLearningJourneySemesterDashboard(token, sem);
-      setDashboard(data);
-    } catch (e) {
-      setDashboard(null);
-      setError(e.message || '載入失敗');
-      setRequestId(e.requestId || '');
-    } finally {
-      setLoading(false);
-    }
-  }, [semesterInput, token]);
-
-  const loadFormalDashboard = useCallback(async () => {
-    const sem = semesterInput.trim();
-    if (!sem) {
-      setFormalError('請輸入學期代碼');
-      return;
-    }
-    setFormalLoading(true);
-    setFormalError('');
-    try {
-      const [summaryV3, risk, freshness] = await Promise.all([
-        getLearningJourneyEnglishTestSummaryV3(token, sem),
-        getLearningJourneyRiskStudents(token, sem),
-        getLearningJourneyDataFreshness(token, sem).catch(() => null)
+      const [dashboard, summary, departmentStats, cefrDistribution, quality, importHistoryData, risk, freshness] = await Promise.all([
+        getLearningJourneySemesterDashboard(token, semesterId).catch(() => null),
+        getSemesterSummary(token, semesterId).catch(() => null),
+        getSemesterDepartmentStats(token, semesterId).catch(() => null),
+        getSemesterCefrDistribution(token, semesterId).catch(() => null),
+        getSemesterDataQuality(token, semesterId).catch(() => null),
+        getSemesterImportHistories(token, semesterId, { limit: 200 }).catch(() => null),
+        getLearningJourneyRiskStudents(token, semesterId).catch(() => null),
+        getLearningJourneyDataFreshness(token, semesterId).catch(() => null),
       ]);
-      setFormalSummary(summaryV3);
-      setRiskData(risk);
-      if (freshness && Array.isArray(freshness.sections)) setFreshnessData(freshness);
-    } catch (e) {
-      setFormalSummary(null);
-      setRiskData(null);
-      setFormalError(e.message || '正式儀表板載入失敗');
-    } finally {
-      setFormalLoading(false);
+      if (!dashboard && !summary && !departmentStats && !cefrDistribution && !quality && !risk) {
+        setOverviewState((prev) => ({
+          ...prev,
+          status: 'error',
+          error: '目前無法取得此學期總覽資料，請稍後再試或確認學期代碼。',
+          requestId: '',
+        }));
+        return;
+      }
+
+      const importHistories = Array.isArray(importHistoryData?.items) ? importHistoryData.items : [];
+      const snapshotSummary = summary || dashboard?.semesters?.[0] || null;
+      if (snapshotSummary) {
+        try {
+          const fingerprint = [
+            semesterId,
+            snapshotSummary.rosterActiveStudentCount ?? snapshotSummary.rosterActiveCount,
+            snapshotSummary.validBestScoreStudentCount,
+            snapshotSummary.attainedStudentCount,
+            snapshotSummary.attainmentRate,
+          ].join('|');
+          const existing = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+          const arr = Array.isArray(existing) ? existing : [];
+          const next = arr[0]?.fingerprint === fingerprint
+            ? arr
+            : [{ id: `auto-${Date.now()}`, fingerprint, createdAt: new Date().toISOString(), semesterId, summary: snapshotSummary }, ...arr].slice(0, 50);
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+          setHistoryRecords(next);
+        } catch (_) {
+          // 本機快照失敗不影響總覽查詢。
+        }
+      }
+
+      setOverviewState({
+        status: 'success',
+        dashboard: dashboard ? { ...dashboard, freshness } : null,
+        summary,
+        departmentStats,
+        cefrDistribution,
+        quality,
+        importHistories,
+        risk,
+        error: '',
+        requestId: '',
+      });
+    } catch (error) {
+      setOverviewState((prev) => ({ ...prev, status: 'error', error: getReadableError(error, '學期總覽取得失敗。'), requestId: error.requestId || '' }));
     }
-  }, [semesterInput, token]);
+  }, [semesterInput, syncQuery, token]);
 
-  const st = profile?.student || {};
-  const flags = st.aggregateFlags || {};
-  const timeline = Array.isArray(profile?.timeline) ? profile.timeline : [];
-  const attempts = Array.isArray(profile?.examAttempts) ? profile.examAttempts : [];
-  const activities = Array.isArray(profile?.activities) ? profile.activities : [];
-  const courses = Array.isArray(profile?.courses) ? profile.courses : [];
-  const regs = Array.isArray(profile?.examRegistrations) ? profile.examRegistrations : [];
-  const dq = Array.isArray(profile?.dataQuality) ? profile.dataQuality : [];
+  const loadStudents = useCallback(async (patch = {}) => {
+    const semesterId = semesterInput.trim();
+    if (!semesterId) {
+      setStudentsState((prev) => ({ ...prev, error: '請先選擇或輸入學期。', requestId: '' }));
+      return;
+    }
+    const filters = { ...studentFilters, ...patch };
+    setActiveTab('students');
+    syncQuery('students');
+    setStudentsState((prev) => ({ ...prev, loading: true, error: '', requestId: '', semesterId }));
+    try {
+      const data = await getSemesterStudents(token, semesterId, filters);
+      setStudentsState({
+        loading: false,
+        error: '',
+        requestId: '',
+        rows: Array.isArray(data?.items) ? data.items : [],
+        pagination: data?.pagination || { limit: filters.limit, offset: filters.offset, returned: Array.isArray(data?.items) ? data.items.length : 0 },
+        semesterId,
+        dataSource: String(data?.source || ''),
+      });
+      setStudentFilters(filters);
+    } catch (error) {
+      setStudentsState({ loading: false, error: getReadableError(error, '學生名單取得失敗。'), requestId: error.requestId || '', rows: [], pagination: {}, semesterId, dataSource: '' });
+    }
+  }, [semesterInput, studentFilters, syncQuery, token]);
 
-  const noStudent = searched && profile && hasCode(dq, 'NO_STUDENT_AGGREGATE');
-  const noExamHint = profile && hasCode(dq, 'NO_EXAM_AGGREGATE');
-  const noActivityHint = profile && hasCode(dq, 'NO_ACTIVITY_AGGREGATE');
+  const setDiagnosticState = (key, patch) => {
+    setDiagnostics((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  };
 
-  const hasExamData =
-    flags.hasExamRegistrations ||
-    flags.hasEtExamAttempts ||
-    flags.hasBestepScores ||
-    flags.hasBestSkills ||
-    flags.hasBestepAttendance;
-  const hasActivityData =
-    flags.hasReservations || flags.hasActivityParticipations || flags.hasBestepAttendance;
-  const hasCourseData = flags.hasCourseEnrollments || courses.length > 0;
+  const loadDiagnostic = async (key, loader) => {
+    setDiagnosticState(key, { loading: true, error: '', requestId: '' });
+    try {
+      const data = await loader();
+      setDiagnosticState(key, { loading: false, data, error: '', requestId: '' });
+    } catch (error) {
+      setDiagnosticState(key, { loading: false, data: null, error: getReadableError(error, '檢查失敗。'), requestId: error.requestId || '' });
+    }
+  };
+
+  const handleRebuildBestSkills = async () => {
+    const semesterId = semesterInput.trim();
+    if (!semesterId) {
+      setRebuildError('請先選擇或輸入學期。');
+      return;
+    }
+    const ok = window.confirm('將重新計算此學期所有學生的最佳成績快取，是否繼續？');
+    if (!ok) return;
+    setRebuilding(true);
+    setRebuildError('');
+    setRebuildResult(null);
+    try {
+      const result = await rebuildSemesterBestSkills(token, semesterId);
+      setRebuildResult(result);
+      await loadOverview();
+    } catch (error) {
+      setRebuildError(getReadableError(error, '重新計算最佳成績失敗。'));
+    } finally {
+      setRebuilding(false);
+    }
+  };
+
+  const tabItems = useMemo(() => [
+    { id: 'student', label: '學生查詢' },
+    { id: 'overview', label: '學期總覽' },
+    { id: 'students', label: '學生名單' },
+    ...(canViewDiagnostics ? [{ id: 'diagnostics', label: '資料來源與診斷' }] : []),
+  ], [canViewDiagnostics]);
 
   return (
     <div className="container-fluid py-3">
-      <h4 className="mb-2">英語學習歷程中心</h4>
-      <p className="text-muted small mb-3">
-        唯讀聚合（v3）：資料來自 et_*、培力報名、BESTEP、預約與 LJS。審核與匯入請仍使用既有後台功能。
-      </p>
-      <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <span className="text-muted small">目前模式</span>
-        <span className={`badge ${operationMode === 'operation' ? 'bg-primary' : 'bg-secondary'}`}>
-          {operationMode === 'operation' ? '營運模式（Operation Mode）' : '管理模式（Advanced）'}
-        </span>
-        {isAdminPlus ? (
-          <div className="btn-group btn-group-sm">
-            <button
-              type="button"
-              className={`btn ${operationMode === 'operation' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => setOperationMode('operation')}
-            >
-              營運模式
-            </button>
-            <button
-              type="button"
-              className={`btn ${operationMode === 'advanced' ? 'btn-secondary' : 'btn-outline-secondary'}`}
-              onClick={() => setOperationMode('advanced')}
-            >
-              管理模式
-            </button>
-          </div>
-        ) : (
-          <span className="text-muted small">（非管理員預設僅顯示營運模式）</span>
-        )}
-      </div>
-
-      <div className="row g-2 mb-3 align-items-end">
-        <div className="col-md-4">
-          <label className="form-label small mb-0">學號</label>
-          <input
-            className="form-control form-control-sm"
-            value={studentInput}
-            onChange={(e) => setStudentInput(e.target.value)}
-            placeholder="例如：D11400001"
-          />
-        </div>
-        <div className="col-md-2">
-          <button type="button" className="btn btn-primary btn-sm w-100" disabled={loading} onClick={loadProfile}>
-            載入
-          </button>
-        </div>
-        <div className="col-md-3">
-          <label className="form-label small mb-0">學期（全校摘要）</label>
-          <input
-            className="form-control form-control-sm"
-            value={semesterInput}
-            onChange={(e) => setSemesterInput(e.target.value)}
-            placeholder="114-1"
-          />
-        </div>
-        <div className="col-md-2">
-          <button type="button" className="btn btn-outline-secondary btn-sm w-100" disabled={loading} onClick={loadDashboard}>
-            學期摘要
-          </button>
-        </div>
-        <div className="col-md-1">
-          <button type="button" className="btn btn-outline-primary btn-sm w-100" disabled={formalLoading} onClick={loadFormalDashboard}>
-            正式版
-          </button>
-        </div>
+      <div className="mb-3">
+        <h4 className="mb-1">英語學習歷程中心</h4>
+        <p className="text-muted mb-0">
+          整合 BESTEP、培力英檢、CEFR 與活動參與資料，查詢學生學習歷程與學期整體狀態。
+        </p>
       </div>
 
       <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">Learning Journey Dashboard（正式版）</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            以 Learning Journey v3 作為主視角，提供 KPI、CEFR 分布與風險學生清單（保留 rollback 與 compare 能力）。
-          </p>
-          {formalError ? <div className="alert alert-danger py-2">{formalError}</div> : null}
-          {Array.isArray(freshnessData?.sections) &&
-          freshnessData.sections.some((s) => s.status === 'stale') ? (
-            <div className="alert alert-danger py-2 mb-2">資料可能過舊，請聯絡管理員。</div>
-          ) : null}
-          {formalLoading ? <div className="alert alert-info py-2">載入中…</div> : null}
-          {!formalLoading && formalSummary && (
-            <>
-              <div className="row g-2 mb-2">
-                <div className="col-md-3">
-                  <div className="border rounded p-2 h-100">
-                    <div className="text-muted">達標率</div>
-                    <div className="fs-5 fw-semibold">{((Number(formalSummary.attainmentRate || 0) * 100).toFixed(1))}%</div>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="border rounded p-2 h-100">
-                    <div className="text-muted">英檢報名率</div>
-                    <div className="fs-5 fw-semibold">
-                      {formalSummary.rosterActiveStudentCount
-                        ? `${((Number((dashboard?.semesters?.[0]?.englishRegistrationCount || 0) / Math.max(Number(formalSummary.rosterActiveStudentCount || 1), 1)) * 100).toFixed(1))}%`
-                        : EMPTY}
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="border rounded p-2 h-100">
-                    <div className="text-muted">活動參與率</div>
-                    <div className="fs-5 fw-semibold">
-                      {riskData?.metrics?.rosterCount
-                        ? `${(((Number(riskData.metrics.rosterCount || 0) - Number(riskData.metrics.riskCount || 0)) / Math.max(Number(riskData.metrics.rosterCount || 1), 1) * 100).toFixed(1))}%`
-                        : EMPTY}
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="border rounded p-2 h-100">
-                    <div className="text-muted">CEFR B2+（達標人數）</div>
-                    <div className="fs-5 fw-semibold">{formalSummary.attainedStudentCount ?? 0}</div>
-                  </div>
-                </div>
-              </div>
-              <div className="card border-0 bg-light mb-2">
-                <div className="card-body py-2">
-                  <div className="fw-semibold mb-1">CEFR 分布（B2+ 比例）</div>
-                  {['listening', 'reading', 'speaking', 'writing'].map((sk) => {
-                    const rate = Number(formalSummary.skills?.[sk]?.rate || 0);
-                    return (
-                      <div key={sk} className="mb-1">
-                        <div className="d-flex justify-content-between">
-                          <span className="text-capitalize">{sk}</span>
-                          <span>{(rate * 100).toFixed(1)}%</span>
-                        </div>
-                        <div className="progress" style={{ height: 8 }}>
-                          <div className="progress-bar" role="progressbar" style={{ width: `${Math.max(0, Math.min(rate * 100, 100))}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-          {!formalLoading && riskData && (
-            <div className="mt-2">
-              <div className="fw-semibold mb-1">
-                Risk Students（高風險前 10）{' '}
-                <Link to="/admin/english-test-tracking/risk" className="small">
-                  查看風險頁
-                </Link>
-              </div>
-              {Array.isArray(riskData.items) && riskData.items.length > 0 ? (
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered mb-0">
-                    <thead className="table-light">
-                      <tr>
-                        <th>學號</th>
-                        <th>風險分數</th>
-                        <th>原因</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {riskData.items.slice(0, 10).map((r) => (
-                        <tr key={r.studentId}>
-                          <td className="font-monospace">{r.studentId}</td>
-                          <td>{r.riskScore}</td>
-                          <td>{(r.reasons || []).map((x) => x.message).join('；')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-muted">目前無高風險學生清單。</div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">P4/P5 上線治理總覽（每日維運入口）</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            彙整學期/系級總覽、風險學生、資料新鮮度、對帳狀態、同步批次、匯入歷程與錯誤治理。上線前用於 go/no-go 判斷，上線後作為每日維運第一個檢查面板。
-          </p>
-          <button type="button" className="btn btn-outline-primary btn-sm" disabled={governanceLoading} onClick={loadGovernanceOverview}>
-            {governanceLoading ? '載入中…' : '載入每日治理總覽'}
-          </button>
-          {governanceError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {governanceError}
-              {governanceRequestId ? <div className="small mt-1">Request-ID：{governanceRequestId}</div> : null}
-            </div>
-          )}
-          {governanceData && (
-            <div className="mt-3">
-              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <span className="text-muted">整體狀態</span>
-                <span
-                  className={`badge ${
-                    governanceData.status === 'ok'
-                      ? 'bg-success'
-                      : governanceData.status === 'warning' || governanceData.status === 'stale' || governanceData.status === 'empty'
-                        ? 'bg-warning text-dark'
-                        : 'bg-danger'
-                  }`}
-                >
-                  {governanceData.status}
-                </span>
-                <span className="text-muted">產生時間：{governanceData.generatedAt || EMPTY}</span>
-              </div>
-              {Array.isArray(governanceData.recommendations) && governanceData.recommendations.length > 0 ? (
-                <div className="alert alert-info py-2">
-                  <div className="fw-semibold mb-1">上線建議</div>
-                  <ul className="mb-0 ps-3">
-                    {governanceData.recommendations.map((r, idx) => <li key={idx}>{r}</li>)}
-                  </ul>
-                </div>
-              ) : null}
-
-              <div className="row g-2 mb-2">
-                <div className="col-md-3">
-                  <div className="border rounded p-2 h-100">
-                    <div className="text-muted">名冊人數</div>
-                    <div className="fs-5 fw-semibold">{governanceData.dashboard?.semesters?.[0]?.rosterActiveCount ?? 0}</div>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="border rounded p-2 h-100">
-                    <div className="text-muted">風險學生</div>
-                    <div className="fs-5 fw-semibold">{governanceData.risk?.metrics?.riskCount ?? 0}</div>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="border rounded p-2 h-100">
-                    <div className="text-muted">修課紀錄</div>
-                    <div className="fs-5 fw-semibold">{governanceData.imports?.courseImport?.courseEnrollmentCount ?? 0}</div>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="border rounded p-2 h-100">
-                    <div className="text-muted">Quarantine</div>
-                    <div className="fs-5 fw-semibold">{governanceData.imports?.quarantineCount ?? 0}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="row g-2 mb-3">
-                <div className="col-lg-3 col-md-6">
-                  <div className="border rounded p-2 h-100">
-                    <div className="fw-semibold mb-1">Canonical Coverage</div>
-                    <div className="mb-1">
-                      <span className={`badge ${
-                        governanceData.canonicalReady?.canonicalReady
-                          ? 'bg-success'
-                          : governanceData.canonicalReady?.canonicalRequired
-                            ? 'bg-danger'
-                            : 'bg-secondary'
-                      }`}>
-                        {governanceData.canonicalReady?.canonicalRequired
-                          ? `Required from ${governanceData.canonicalReady?.requiredFromSemester || ''}`
-                          : 'Not required'}
-                      </span>
-                    </div>
-                    <div className="fs-5 fw-semibold">
-                      {Math.round((governanceData.canonicalCoverage?.coverageRate || 0) * 100)}%
-                    </div>
-                    <div className="text-muted">
-                      {(governanceData.canonicalCoverage?.coveredCount ?? 0)} / {(governanceData.canonicalCoverage?.totalCount ?? 0)} sections covered
-                    </div>
-                    {Array.isArray(governanceData.canonicalCoverage?.canonicalMissingSections) &&
-                    governanceData.canonicalCoverage.canonicalMissingSections.length > 0 ? (
-                      <div className="text-warning mt-1">
-                        缺口：{governanceData.canonicalCoverage.canonicalMissingSections.join('、')}
-                      </div>
-                    ) : (
-                      <div className="text-success mt-1">Canonical 區塊目前可判讀。</div>
-                    )}
-                    {Array.isArray(governanceData.canonicalReady?.blockingReasons) &&
-                    governanceData.canonicalReady.blockingReasons.length > 0 ? (
-                      <div className="text-danger mt-1">
-                        Ready 缺口：{governanceData.canonicalReady.blockingReasons.slice(0, 3).join('、')}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="col-lg-3 col-md-6">
-                  <div className="border rounded p-2 h-100">
-                    <div className="fw-semibold mb-1">Fallback / Legacy</div>
-                    <div className="fs-5 fw-semibold">{governanceData.fallbackUsage?.fallbackUsageCount ?? 0}</div>
-                    <div className="text-muted">近期 fallback 使用次數</div>
-                    {governanceData.legacyApiUsageWarning ? (
-                      <div className="text-warning mt-1">{governanceData.legacyApiUsageWarning}</div>
-                    ) : (
-                      <div className="text-success mt-1">目前未偵測到近期 fallback。</div>
-                    )}
-                  </div>
-                </div>
-                <div className="col-lg-3 col-md-6">
-                  <div className="border rounded p-2 h-100">
-                    <div className="fw-semibold mb-1">Job Runs</div>
-                    {governanceData.jobs?.enabled ? (
-                      <div>
-                        <div className="fs-5 fw-semibold">{(governanceData.jobs?.recent || []).length}</div>
-                        <div className="text-muted">最近任務紀錄</div>
-                        <div className="mt-1">
-                          最新：{governanceData.jobs?.recent?.[0]?.status || '尚無紀錄'}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-muted">
-                        {governanceData.jobs?.message || '尚未啟用自動化任務紀錄。'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="col-lg-3 col-md-6">
-                  <div className="border rounded p-2 h-100">
-                    <div className="fw-semibold mb-1">Stale / Empty Sections</div>
-                    {Array.isArray(governanceData.freshness?.sections) ? (
-                      <div>
-                        <div className="fs-5 fw-semibold">
-                          {governanceData.freshness.sections.filter((s) => ['stale', 'empty', 'unknown'].includes(s.status)).length}
-                        </div>
-                        <div className="text-muted">
-                          {governanceData.freshness.sections
-                            .filter((s) => ['stale', 'empty', 'unknown'].includes(s.status))
-                            .map((s) => s.key)
-                            .join('、') || '全部 fresh'}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-muted">尚無 freshness 資料。</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="border rounded p-2 mb-3">
-                <div className="fw-semibold mb-1">Recent Job Runs</div>
-                {governanceData.jobs?.enabled ? (
-                  Array.isArray(governanceData.jobs?.recent) && governanceData.jobs.recent.length > 0 ? (
-                    <div className="table-responsive">
-                      <table className="table table-sm table-bordered mb-0">
-                        <thead className="table-light">
-                          <tr><th>Job</th><th>狀態</th><th>觸發</th><th>耗時</th><th>開始時間</th><th>Request-ID</th></tr>
-                        </thead>
-                        <tbody>
-                          {governanceData.jobs.recent.slice(0, 8).map((job) => (
-                            <tr key={job.id}>
-                              <td>{job.jobName}</td>
-                              <td>
-                                <span className={`badge ${
-                                  job.status === 'success'
-                                    ? 'bg-success'
-                                    : job.status === 'running'
-                                      ? 'bg-info text-dark'
-                                      : job.status === 'skipped'
-                                        ? 'bg-secondary'
-                                        : 'bg-danger'
-                                }`}>
-                                  {job.status}
-                                </span>
-                              </td>
-                              <td>{job.triggeredBy || EMPTY}</td>
-                              <td>{job.durationMs != null ? `${job.durationMs} ms` : EMPTY}</td>
-                              <td>{job.startedAt || EMPTY}</td>
-                              <td className="font-monospace">{job.requestId || EMPTY}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-muted">{governanceData.jobs?.message || '尚無此學期 job run 紀錄。'}</div>
-                  )
-                ) : (
-                  <div className="alert alert-warning py-2 mb-0">
-                    {governanceData.jobs?.message || 'job_runs 尚未啟用或 migration 尚未執行。'}
-                  </div>
-                )}
-              </div>
-
-              <div className="row g-3">
-                <div className="col-lg-6">
-                  <div className="fw-semibold mb-1">系級/年級總覽（前 12）</div>
-                  <div className="table-responsive">
-                    <table className="table table-sm table-bordered mb-0">
-                      <thead className="table-light">
-                        <tr><th>系所</th><th>年級</th><th>人數</th></tr>
-                      </thead>
-                      <tbody>
-                        {(governanceData.classOverview || []).slice(0, 12).map((row, idx) => (
-                          <tr key={`${row.department}-${row.grade}-${idx}`}>
-                            <td>{row.department}</td>
-                            <td>{row.grade}</td>
-                            <td>{row.studentCount}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="col-lg-6">
-                  <div className="fw-semibold mb-1">高風險學生（前 10）</div>
-                  <div className="table-responsive">
-                    <table className="table table-sm table-bordered mb-0">
-                      <thead className="table-light">
-                        <tr><th>學號</th><th>分數</th><th>原因</th></tr>
-                      </thead>
-                      <tbody>
-                        {(governanceData.risk?.topStudents || []).slice(0, 10).map((row) => (
-                          <tr key={row.studentId}>
-                            <td className="font-monospace">{row.studentId}</td>
-                            <td>{row.riskScore}</td>
-                            <td>{(row.reasons || []).map((x) => x.message).join('；') || EMPTY}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="col-lg-6">
-                  <div className="fw-semibold mb-1">對帳狀態</div>
-                  <div className="table-responsive">
-                    <table className="table table-sm table-bordered mb-0">
-                      <thead className="table-light">
-                        <tr><th>區塊</th><th>source</th><th>aggregate</th><th>status</th></tr>
-                      </thead>
-                      <tbody>
-                        {(governanceData.reconciliation?.sections || []).map((s) => (
-                          <tr key={s.key}>
-                            <td>{s.key}</td>
-                            <td>{s.sourceCount}</td>
-                            <td>{s.aggregateCount}</td>
-                            <td>{s.status}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="col-lg-6">
-                  <div className="fw-semibold mb-1">最近同步/匯入治理</div>
-                  <div className="table-responsive">
-                    <table className="table table-sm table-bordered mb-0">
-                      <thead className="table-light">
-                        <tr><th>批次/匯入</th><th>狀態</th><th>錯誤</th><th>時間</th></tr>
-                      </thead>
-                      <tbody>
-                        {(governanceData.imports?.migrationBatches || []).slice(0, 5).map((b) => (
-                          <tr key={`batch-${b.id}`}>
-                            <td>{b.batchKey || b.migrationName}</td>
-                            <td>{b.status}</td>
-                            <td>{b.errorCount}</td>
-                            <td>{b.startedAt || EMPTY}</td>
-                          </tr>
-                        ))}
-                        {(governanceData.imports?.etAttemptImports || []).slice(0, 5).map((r) => (
-                          <tr key={`et-${r.id}`}>
-                            <td>{r.importName}</td>
-                            <td>imported</td>
-                            <td>{r.errorCount}</td>
-                            <td>{r.importedAt || EMPTY}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      )}
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">目前 Read Model 狀態</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            用於確認 V2 API 目前讀源（legacy 或 learning journey v3），以及 fallback 保護是否啟用。此區塊僅觀測，不會改動 flag。
-          </p>
-          <button type="button" className="btn btn-outline-primary btn-sm" disabled={readModelStatusLoading} onClick={loadReadModelStatus}>
-            {readModelStatusLoading ? '載入中…' : '讀取 read model 狀態'}
-          </button>
-          {readModelStatusError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {readModelStatusError}
-              {readModelStatusRequestId ? <div className="small mt-1">Request-ID：{readModelStatusRequestId}</div> : null}
-            </div>
-          )}
-          {readModelStatusData && (
-            <div className="mt-3">
-              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <span className="text-muted">Flag</span>
-                <span className={`badge ${readModelStatusData.enableLearningJourneyV3ReadModel ? 'bg-success' : 'bg-secondary'}`}>
-                  ENABLE_LEARNING_JOURNEY_V3_READ_MODEL={String(!!readModelStatusData.enableLearningJourneyV3ReadModel)}
-                </span>
-                <span className="text-muted">目前讀源</span>
-                <span className="badge bg-info text-dark">{readModelStatusData.currentReadModel || EMPTY}</span>
-                <span className="text-muted">fallback</span>
-                <span className={`badge ${readModelStatusData.fallbackEnabled ? 'bg-success' : 'bg-danger'}`}>
-                  {readModelStatusData.fallbackEnabled ? 'enabled' : 'disabled'}
-                </span>
-              </div>
-              {Array.isArray(readModelStatusData.warnings) && readModelStatusData.warnings.length > 0 ? (
-                <div className="alert alert-warning py-2 mb-2">
-                  {readModelStatusData.warnings.join('；')}
-                </div>
-              ) : null}
-              {Array.isArray(readModelStatusData.affectedApis) && readModelStatusData.affectedApis.length > 0 ? (
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered mb-0 align-middle">
-                    <thead className="table-light">
-                      <tr>
-                        <th>受影響 API</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {readModelStatusData.affectedApis.map((api) => (
-                        <tr key={api}>
-                          <td className="font-monospace">{api}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
-      </div>
-      )}
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">資料新鮮度（Data Freshness）</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            檢查 canonical 表於指定學期的資料量與最近更新時間。若狀態為 <code>empty</code> 或 <code>stale</code>，建議先執行 sync/reconciliation。
-          </p>
-          <button type="button" className="btn btn-outline-primary btn-sm" disabled={freshnessLoading} onClick={loadDataFreshness}>
-            {freshnessLoading ? '檢查中…' : '執行資料新鮮度檢查'}
-          </button>
-          {freshnessError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {freshnessError}
-              {freshnessRequestId ? <div className="small mt-1">Request-ID：{freshnessRequestId}</div> : null}
-            </div>
-          )}
-          {freshnessData && Array.isArray(freshnessData.sections) && (
-            <div className="mt-3">
-              {(freshnessData.sections.some((s) => s.status === 'stale' || s.status === 'empty') || false) ? (
-                <div className="alert alert-warning py-2 mb-2">
-                  偵測到 stale/empty 區塊，建議先執行 sync 或 reconciliation，再判讀 v3 讀源結果。
-                </div>
-              ) : null}
-              <div className="table-responsive">
-                <table className="table table-sm table-bordered mb-0 align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>section</th>
-                      <th>recordCount</th>
-                      <th>lastUpdatedAt</th>
-                      <th>status</th>
-                      <th>message</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {freshnessData.sections.map((s) => (
-                      <tr key={s.key}>
-                        <td className="font-monospace">{s.key}</td>
-                        <td>{s.recordCount}</td>
-                        <td>{s.lastUpdatedAt || EMPTY}</td>
-                        <td>
-                          <span
-                            className={`badge ${
-                              s.status === 'fresh'
-                                ? 'bg-success'
-                                : s.status === 'stale'
-                                  ? 'bg-warning text-dark'
-                                  : s.status === 'empty'
-                                    ? 'bg-secondary'
-                                    : 'bg-danger'
-                            }`}
-                          >
-                            {s.status}
-                          </span>
-                        </td>
-                        <td>{s.message}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      )}
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">切換準備度（V2 read model → v3）</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            整合對帳、儀表摘要 compare、學生列表 compare、以及最多 10 位學生之詳情 compare，產出 <code>ready</code>／<code>not_ready</code>／<code>error</code>。
-            不會修改 <code>.env</code> 或自動開啟 <code>ENABLE_LEARNING_JOURNEY_V3_READ_MODEL</code>。請使用與下方相同的<strong>學期</strong>代碼。
-          </p>
-          <button type="button" className="btn btn-outline-primary btn-sm" disabled={readinessLoading} onClick={loadReadiness}>
-            {readinessLoading ? '檢查中…' : '執行 readiness check'}
-          </button>
-          {readinessError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {readinessError}
-              {readinessRequestId ? <div className="small mt-1">Request-ID：{readinessRequestId}</div> : null}
-            </div>
-          )}
-          {readinessData && (
-            <div className="mt-3">
-              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <span className="text-muted">整體狀態</span>
-                <span
-                  className={`badge ${
-                    readinessData.status === 'ready'
-                      ? 'bg-success'
-                      : readinessData.status === 'not_ready'
-                        ? 'bg-warning text-dark'
-                        : 'bg-danger'
-                  }`}
-                >
-                  {readinessData.status}
-                </span>
-              </div>
-              {readinessData.recommendation ? (
-                <div
-                  className={`alert py-2 mb-2 ${
-                    readinessData.status === 'ready' ? 'alert-success' : readinessData.status === 'not_ready' ? 'alert-warning' : 'alert-danger'
-                  }`}
-                >
-                  <div className="fw-semibold mb-1">建議</div>
-                  <div className="mb-0">{readinessData.recommendation}</div>
-                </div>
-              ) : null}
-              {Array.isArray(readinessData.checks) && readinessData.checks.length > 0 ? (
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered mb-0 align-middle">
-                    <thead className="table-light">
-                      <tr>
-                        <th>key</th>
-                        <th>label</th>
-                        <th>status</th>
-                        <th>message</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {readinessData.checks.map((c) => (
-                        <tr key={c.key}>
-                          <td className="font-monospace">{c.key}</td>
-                          <td>{c.label}</td>
-                          <td>
-                            <span
-                              className={`badge ${
-                                c.status === 'ok' ? 'bg-success' : c.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'
-                              }`}
-                            >
-                              {c.status}
-                            </span>
-                          </td>
-                          <td className="text-break">{c.message}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-              {readinessData.checks?.some((c) => c.metrics && Object.keys(c.metrics).length > 0) ? (
-                <details className="mt-2">
-                  <summary className="text-muted" style={{ cursor: 'pointer' }}>
-                    metrics（JSON）
-                  </summary>
-                  <pre className="small bg-light p-2 rounded mt-1 mb-0 text-break" style={{ maxHeight: 240, overflow: 'auto' }}>
-                    {JSON.stringify(
-                      readinessData.checks.map((c) => ({ key: c.key, metrics: c.metrics })),
-                      null,
-                      2
-                    )}
-                  </pre>
-                </details>
-              ) : null}
-            </div>
-          )}
-        </div>
-      </div>
-      )}
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">資料對帳</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            使用上方<strong>學期</strong>代碼，比對 et 名冊、培力報名、BESTEP、長期追蹤與活動等來源與 LJS 聚合表之差異（唯讀）。
-          </p>
-          <button type="button" className="btn btn-outline-primary btn-sm" disabled={reconLoading} onClick={loadReconciliation}>
-            {reconLoading ? '對帳中…' : '執行對帳'}
-          </button>
-          {reconError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {reconError}
-              {reconRequestId ? <div className="small mt-1">Request-ID：{reconRequestId}</div> : null}
-            </div>
-          )}
-          {reconData && Array.isArray(reconData.queryErrors) && reconData.queryErrors.length > 0 && (
-            <div className="alert alert-warning py-2 mt-2 mb-0 small">
-              部分查詢錯誤：{reconData.queryErrors.map((e) => e.message).join('；')}
-            </div>
-          )}
-          {reconData && Array.isArray(reconData.sections) && reconData.sections.length > 0 && (
-            <div className="table-responsive mt-3">
-              <table className="table table-sm table-bordered mb-0 align-middle">
-                <thead className="table-light">
-                  <tr>
-                    <th>區塊</th>
-                    <th>來源筆數</th>
-                    <th>聚合筆數</th>
-                    <th>交集</th>
-                    <th>狀態</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reconData.sections.map((s) => {
-                    const diff0 =
-                      (s.sourceOnlyStudents || []).length === 0 &&
-                      (s.aggregateOnlyStudents || []).length === 0 &&
-                      s.sourceCount === s.aggregateCount;
-                    return (
-                      <React.Fragment key={s.key}>
-                        <tr>
-                          <td>
-                            <div className="fw-medium">{s.label}</div>
-                            <div className="text-muted text-break" style={{ fontSize: '0.75rem' }}>
-                              {s.key}
-                            </div>
-                          </td>
-                          <td>{s.sourceCount}</td>
-                          <td>{s.aggregateCount}</td>
-                          <td>{s.matchedCount}</td>
-                          <td>
-                            <span
-                              className={`badge ${
-                                s.status === 'ok'
-                                  ? 'bg-success'
-                                  : s.status === 'warning'
-                                    ? 'bg-warning text-dark'
-                                    : s.status === 'error'
-                                      ? 'bg-danger'
-                                      : 'bg-secondary'
-                              }`}
-                            >
-                              {s.status}
-                            </span>
-                            {diff0 ? <div className="text-success mt-1">資料一致</div> : null}
-                          </td>
-                        </tr>
-                        {!diff0 && (
-                          <tr>
-                            <td colSpan={5} className="bg-light">
-                              <div className="row g-2">
-                                <div className="col-md-6">
-                                  <div className="text-muted">僅來源有（最多顯示 30）</div>
-                                  <div className="font-monospace text-break" style={{ maxHeight: 120, overflow: 'auto' }}>
-                                    {(s.sourceOnlyStudents || []).slice(0, 30).join(', ') || EMPTY}
-                                  </div>
-                                </div>
-                                <div className="col-md-6">
-                                  <div className="text-muted">僅聚合有（最多顯示 30）</div>
-                                  <div className="font-monospace text-break" style={{ maxHeight: 120, overflow: 'auto' }}>
-                                    {(s.aggregateOnlyStudents || []).slice(0, 30).join(', ') || EMPTY}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-      )}
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">V2 指標比較（儀表摘要）</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            以學期代碼並列<strong>舊版 V2 summary</strong>（<code>et_*</code> 路徑）與<strong>LJS v3 read model</strong>（<code>student_semester_profiles</code> +{' '}
-            <code>exam_attempts</code>）。不變更英檢 V2 儀表讀源；僅供比對。
-          </p>
-          <button type="button" className="btn btn-outline-primary btn-sm" disabled={compareLoading} onClick={loadEnglishTestSummaryCompare}>
-            {compareLoading ? '載入中…' : '載入比較'}
-          </button>
-          {compareError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {compareError}
-              {compareRequestId ? <div className="small mt-1">Request-ID：{compareRequestId}</div> : null}
-            </div>
-          )}
-          {compareData && (
-            <div className="mt-3">
-              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <span className="text-muted">整體狀態</span>
-                <span
-                  className={`badge ${
-                    compareData.status === 'ok'
-                      ? 'bg-success'
-                      : compareData.status === 'warning'
-                        ? 'bg-warning text-dark'
-                        : 'bg-danger'
-                  }`}
-                >
-                  {compareData.status}
-                </span>
-                {compareData.enableLearningJourneyV3ReadModel ? (
-                  <span className="badge bg-info text-dark">ENABLE_LEARNING_JOURNEY_V3_READ_MODEL=true</span>
-                ) : (
-                  <span className="badge bg-secondary">v3 read flag 未啟用（預設）</span>
-                )}
-              </div>
-              {isTrialSwitchHintRow(compareData) && compareData.status !== 'error' ? (
-                <div className="alert alert-success py-2 mb-2">
-                  主要指標差異為零或極小，可進入試切換評估（仍須營運確認後再改讀源）。
-                </div>
-              ) : null}
-              {compareData.legacy && compareData.legacy.error ? (
-                <div className="alert alert-warning py-2">V2 legacy 無法載入：{compareData.legacy.error}</div>
-              ) : null}
-              {compareData.diff && (
-                <div className="mb-2">
-                  <div className="fw-semibold mb-1">差異（v3 − legacy）</div>
-                  <div className="font-monospace text-break">
-                    名冊人數 {compareData.diff.rosterActiveStudentCount}；有效最佳分數人數 {compareData.diff.validBestScoreStudentCount}；達標人數{' '}
-                    {compareData.diff.attainedStudentCount}；達成率 {compareData.diff.attainmentRate}
-                  </div>
-                </div>
-              )}
-              <div className="table-responsive">
-                <table className="table table-sm table-bordered mb-0 align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>指標</th>
-                      <th>Legacy（V2）</th>
-                      <th>v3（LJS）</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {['rosterActiveStudentCount', 'validBestScoreStudentCount', 'attainedStudentCount', 'attainmentRate'].map((key) => (
-                      <tr key={key}>
-                        <td className="font-monospace">{key}</td>
-                        <td>{compareData.legacy && !compareData.legacy.error ? compareData.legacy[key] : EMPTY}</td>
-                        <td>{compareData.v3 ? compareData.v3[key] : EMPTY}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {compareData.v3 && compareData.v3.skills && compareData.legacy && compareData.legacy.skills && !compareData.legacy.error ? (
-                <div className="table-responsive mt-2">
-                  <table className="table table-sm table-bordered mb-0 align-middle">
-                    <thead className="table-light">
-                      <tr>
-                        <th>技能（B2+ 人數／率）</th>
-                        <th>Legacy</th>
-                        <th>v3</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {['listening', 'reading', 'speaking', 'writing'].map((sk) => (
-                        <tr key={sk}>
-                          <td className="text-capitalize">{sk}</td>
-                          <td>
-                            {compareData.legacy.skills[sk]?.count ?? EMPTY}／{compareData.legacy.skills[sk]?.rate ?? EMPTY}
-                          </td>
-                          <td>
-                            {compareData.v3.skills[sk]?.count ?? EMPTY}／{compareData.v3.skills[sk]?.rate ?? EMPTY}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
-      </div>
-      )}
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">學生列表對照（V2 vs LJS v3）</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            比對 <code>/api/admin/english-tests/…/students</code>（legacy 名冊）與 v3 read model（<code>student_semester_profiles</code> + <code>exam_attempts</code>）。不變更學生列表頁 UI。
-          </p>
-          <button type="button" className="btn btn-outline-primary btn-sm" disabled={studCompareLoading} onClick={loadEnglishTestStudentsCompare}>
-            {studCompareLoading ? '比較中…' : '比較 students'}
-          </button>
-          {studCompareError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {studCompareError}
-              {studCompareRequestId ? <div className="small mt-1">Request-ID：{studCompareRequestId}</div> : null}
-            </div>
-          )}
-          {studCompareData && (
-            <div className="mt-3">
-              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <span className="text-muted">狀態</span>
-                <span
-                  className={`badge ${
-                    studCompareData.status === 'ok' ? 'bg-success' : studCompareData.status === 'warning' ? 'bg-warning text-dark' : 'bg-danger'
-                  }`}
-                >
-                  {studCompareData.status}
-                </span>
-                <span className="text-muted">legacyCount</span>
-                <span className="fw-medium">{studCompareData.legacyCount}</span>
-                <span className="text-muted">v3Count</span>
-                <span className="fw-medium">{studCompareData.v3Count}</span>
-                <span className="text-muted">diffCount</span>
-                <span className="fw-medium">{studCompareData.diffCount}</span>
-              </div>
-              {isStudentsListTrialHint(studCompareData) ? (
-                <div className="alert alert-success py-2 mb-2">學生列表可進入試切換（差異筆數與比例已低於門檻）。</div>
-              ) : null}
-              {studCompareData.sampleDiff && studCompareData.sampleDiff.length > 0 ? (
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered mb-0 align-middle">
-                    <thead className="table-light">
-                      <tr>
-                        <th>學號</th>
-                        <th>Legacy</th>
-                        <th>v3</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {studCompareData.sampleDiff.map((row) => (
-                        <tr key={row.studentId}>
-                          <td className="font-monospace">{row.studentId}</td>
-                          <td>
-                            <pre className="small mb-0 text-break" style={{ maxWidth: 360, whiteSpace: 'pre-wrap' }}>
-                              {JSON.stringify(row.legacy, null, 2)}
-                            </pre>
-                          </td>
-                          <td>
-                            <pre className="small mb-0 text-break" style={{ maxWidth: 360, whiteSpace: 'pre-wrap' }}>
-                              {JSON.stringify(row.v3, null, 2)}
-                            </pre>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-muted">無差異樣本（diffCount 為 0 或無資料）。</div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      )}
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">學生詳情對照（V2 vs LJS v3）</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            比對 <code>/api/admin/english-tests/…/students/:studentId</code>（legacy）與 v3 read model（<code>exam_attempts</code> 等）。不變更學生詳情頁 UI 讀源；使用與上方相同的<strong>學期</strong>代碼。
-          </p>
-          <div className="row g-2 align-items-end mb-2">
-            <div className="col-md-4">
-              <label className="form-label small mb-0">學號（詳情比對）</label>
+        <div className="card-body">
+          <div className="row g-2 align-items-end">
+            <div className="col-lg-4 col-md-6">
+              <label className="form-label small mb-1">學號</label>
               <input
-                className="form-control form-control-sm"
-                value={detailCompareStudentInput}
-                onChange={(e) => setDetailCompareStudentInput(e.target.value)}
+                className="form-control"
+                value={studentInput}
+                onChange={(e) => setStudentInput(e.target.value)}
                 placeholder="例如：D11400001"
               />
             </div>
-            <div className="col-md-3">
-              <button
-                type="button"
-                className="btn btn-outline-primary btn-sm"
-                disabled={detailCompareLoading}
-                onClick={loadEnglishTestStudentDetailCompare}
-              >
-                {detailCompareLoading ? '比較中…' : '比較學生詳情'}
-              </button>
-            </div>
-          </div>
-          {detailCompareError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {detailCompareError}
-              {detailCompareRequestId ? <div className="small mt-1">Request-ID：{detailCompareRequestId}</div> : null}
-            </div>
-          )}
-          {detailCompareData && (
-            <div className="mt-3">
-              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <span className="text-muted">狀態</span>
-                <span
-                  className={`badge ${
-                    detailCompareData.status === 'ok'
-                      ? 'bg-success'
-                      : detailCompareData.status === 'warning'
-                        ? 'bg-warning text-dark'
-                        : 'bg-danger'
-                  }`}
-                >
-                  {detailCompareData.status}
-                </span>
-              </div>
-              {detailCompareData.status === 'ok' ? (
-                <div className="alert alert-success py-2 mb-2">學生詳情可進入試切換（仍須營運確認後再改 admin 讀源）。</div>
-              ) : null}
-              {(detailCompareData.legacyError || detailCompareData.v3Error) && (
-                <div className="alert alert-warning py-2 mb-2 small">
-                  {detailCompareData.legacyError ? <div>Legacy：{detailCompareData.legacyError}</div> : null}
-                  {detailCompareData.v3Error ? <div>v3：{detailCompareData.v3Error}</div> : null}
-                </div>
-              )}
-              <div className="row g-2 mb-2">
-                <div className="col-md-6">
-                  <div className="fw-semibold mb-1">Legacy 摘要</div>
-                  <div className="text-muted font-monospace text-break" style={{ fontSize: '0.75rem' }}>
-                    attempts：{detailCompareData.legacy?.attempts?.length ?? 0}；activities：
-                    {detailCompareData.legacy?.activities?.length ?? 0}；examRegistrations：
-                    {detailCompareData.legacy?.examRegistrations?.length ?? 0}
-                  </div>
-                  <pre className="small mb-0 mt-1 text-break bg-light p-2 rounded" style={{ maxHeight: 160, overflow: 'auto' }}>
-                    {detailCompareData.legacy
-                      ? JSON.stringify(
-                          {
-                            roster: detailCompareData.legacy.roster,
-                            bestSkills: detailCompareData.legacy.bestSkills,
-                          },
-                          null,
-                          2
-                        )
-                      : EMPTY}
-                  </pre>
-                </div>
-                <div className="col-md-6">
-                  <div className="fw-semibold mb-1">v3 摘要</div>
-                  <div className="text-muted font-monospace text-break" style={{ fontSize: '0.75rem' }}>
-                    attempts：{detailCompareData.v3?.attempts?.length ?? 0}；activities：
-                    {detailCompareData.v3?.activities?.length ?? 0}；examRegistrations：
-                    {detailCompareData.v3?.examRegistrations?.length ?? 0}
-                  </div>
-                  <pre className="small mb-0 mt-1 text-break bg-light p-2 rounded" style={{ maxHeight: 160, overflow: 'auto' }}>
-                    {detailCompareData.v3
-                      ? JSON.stringify(
-                          {
-                            roster: detailCompareData.v3.roster,
-                            bestSkills: detailCompareData.v3.bestSkills,
-                            source: detailCompareData.v3.source,
-                            dataQuality: detailCompareData.v3.dataQuality,
-                          },
-                          null,
-                          2
-                        )
-                      : EMPTY}
-                  </pre>
-                </div>
-              </div>
-              {Array.isArray(detailCompareData.diff) && detailCompareData.diff.length > 0 ? (
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered mb-0 align-middle">
-                    <thead className="table-light">
-                      <tr>
-                        <th>category</th>
-                        <th>field</th>
-                        <th>legacy</th>
-                        <th>v3</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detailCompareData.diff.map((row, idx) => (
-                        <tr key={`${row.category}-${row.field}-${idx}`}>
-                          <td className="font-monospace">{row.category}</td>
-                          <td className="font-monospace">{row.field}</td>
-                          <td className="text-break" style={{ maxWidth: 280 }}>
-                            {typeof row.legacy === 'object' ? JSON.stringify(row.legacy) : String(row.legacy)}
-                          </td>
-                          <td className="text-break" style={{ maxWidth: 280 }}>
-                            {typeof row.v3 === 'object' ? JSON.stringify(row.v3) : String(row.v3)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : detailCompareData.status !== 'error' ? (
-                <div className="text-muted">diff 為空（兩邊可比欄位一致）。</div>
-              ) : null}
-            </div>
-          )}
-        </div>
-      </div>
-      )}
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">同步工具（LJS read model）</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            使用上方<strong>學期</strong>代碼；先<strong>預覽（dry run）</strong>再<strong>正式同步</strong>。正式同步後會自動重新執行對帳。不刪除來源表資料。
-          </p>
-          <div className="mb-2">
-            {SYNC_SECTION_OPTIONS.map((s) => (
-              <div key={s.key} className="form-check form-check-inline">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id={`lj-sync-${s.key}`}
-                  checked={!!syncSectionsSel[s.key]}
-                  onChange={(e) =>
-                    setSyncSectionsSel((prev) => ({
-                      ...prev,
-                      [s.key]: e.target.checked,
-                    }))
-                  }
-                />
-                <label className="form-check-label" htmlFor={`lj-sync-${s.key}`}>
-                  {s.label}
-                </label>
-              </div>
-            ))}
-          </div>
-          <div className="d-flex flex-wrap gap-2">
-            <button type="button" className="btn btn-outline-secondary btn-sm" disabled={syncLoading} onClick={() => runLearningJourneySync(true)}>
-              {syncLoading ? '執行中…' : '預覽（dry run）'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-warning btn-sm"
-              disabled={syncLoading}
-              onClick={() => {
-                const ok = window.confirm('此操作會同步資料，請確認是否已完成匯入。是否繼續？');
-                if (!ok) return;
-                applySyncThenReconcile();
-              }}
-            >
-              {syncLoading ? '執行中…' : '正式同步並對帳'}
-            </button>
-          </div>
-          {syncError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {syncError}
-              {syncRequestId ? <div className="small mt-1">Request-ID：{syncRequestId}</div> : null}
-            </div>
-          )}
-          {syncResult && syncResult.results && (
-            <div className="table-responsive mt-3">
-              <table className="table table-sm table-bordered mb-0 align-middle">
-                <thead className="table-light">
-                  <tr>
-                    <th>區塊</th>
-                    <th>inserted</th>
-                    <th>updated</th>
-                    <th>skipped</th>
-                    <th>errors</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(syncResult.results).map(([key, r]) => (
-                    <tr key={key}>
-                      <td className="font-monospace">{key}</td>
-                      <td>{r.inserted}</td>
-                      <td>{r.updated}</td>
-                      <td>{r.skipped}</td>
-                      <td className="text-break" style={{ maxWidth: 280 }}>
-                        {Array.isArray(r.errors) && r.errors.length > 0 ? JSON.stringify(r.errors) : EMPTY}
-                      </td>
-                    </tr>
+            <div className="col-lg-3 col-md-6">
+              <label className="form-label small mb-1">學期</label>
+              {semesters.length > 0 ? (
+                <select className="form-select" value={semesterInput} onChange={(e) => setSemesterInput(e.target.value)}>
+                  {semesters.map((semester) => (
+                    <option key={semester.id || semester.code} value={semester.id || semester.code}>
+                      {semester.name || semester.code || semester.id}
+                    </option>
                   ))}
-                </tbody>
-              </table>
-              <div className="text-muted mt-1">dryRun：{syncResult.dryRun ? '是（未寫入）' : '否（已寫入）'}</div>
-            </div>
-          )}
-        </div>
-      </div>
-      )}
-
-      {operationMode === 'advanced' && (
-      <div className="card mb-3">
-        <div className="card-header py-2 fw-semibold">修課紀錄匯入（courses / course_enrollments）</div>
-        <div className="card-body small">
-          <p className="text-muted mb-2">
-            上傳修課 Excel，欄位可使用：學期、課號、課名、學號、姓名、開課單位、授課教師、學分、修課狀態、成績、通過狀態、學習成果。請先 dry run，確認無錯誤與重複列後再 apply。
-          </p>
-          <div className="row g-2 align-items-end">
-            <div className="col-md-6">
-              <label className="form-label small mb-1">修課紀錄 Excel</label>
-              <input
-                className="form-control form-control-sm"
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={(e) => {
-                  const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-                  setCourseImportFile(file);
-                  setCourseImportDryRun(null);
-                  setCourseImportApply(null);
-                  setCourseImportError('');
-                  setCourseImportRequestId('');
-                }}
-              />
-            </div>
-            <div className="col-md-6 d-flex flex-wrap gap-2">
-              <button type="button" className="btn btn-outline-secondary btn-sm" disabled={courseImportLoading || !courseImportFile} onClick={runCourseImportDryRun}>
-                {courseImportLoading ? '處理中…' : 'Dry run 預覽'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-warning btn-sm"
-                disabled={courseImportLoading || !courseImportFile || !courseImportDryRun}
-                onClick={runCourseImportApply}
-              >
-                {courseImportLoading ? '處理中…' : 'Apply 寫入'}
-              </button>
-              {courseImportFile ? <span className="text-muted align-self-center">{courseImportFile.name}</span> : null}
-            </div>
-          </div>
-          {courseImportError && (
-            <div className="alert alert-danger py-2 mt-2 mb-0">
-              {courseImportError}
-              {courseImportRequestId ? <div className="small mt-1">Request-ID：{courseImportRequestId}</div> : null}
-            </div>
-          )}
-          {courseImportDryRun && (
-            <div className="mt-3">
-              <div className="fw-semibold mb-1">Dry run 結果</div>
-              <div className="row g-2 mb-2">
-                {[
-                  ['有效列', courseImportDryRun.validRows],
-                  ['錯誤列', courseImportDryRun.invalidRows],
-                  ['重複列', courseImportDryRun.duplicateRows],
-                  ['新課程', courseImportDryRun.wouldCreateCourses],
-                  ['更新課程', courseImportDryRun.wouldUpdateCourses],
-                  ['新修課', courseImportDryRun.wouldCreateEnrollments],
-                  ['更新修課', courseImportDryRun.wouldUpdateEnrollments],
-                  ['未知學生', courseImportDryRun.unknownStudents],
-                ].map(([label, value]) => (
-                  <div key={label} className="col-6 col-md-3">
-                    <div className="border rounded p-2 h-100">
-                      <div className="text-muted">{label}</div>
-                      <div className="fw-semibold">{value ?? 0}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {Number(courseImportDryRun.invalidRows || 0) > 0 || Number(courseImportDryRun.duplicateRows || 0) > 0 ? (
-                <div className="alert alert-warning py-2">
-                  dry run 尚有錯誤或重複列，後端會拒絕 apply。請先修正檔案後重新預覽。
-                </div>
+                </select>
               ) : (
-                <div className="alert alert-success py-2">dry run 未發現阻擋性錯誤，可由 super admin apply。</div>
+                <input className="form-control" value={semesterInput} onChange={(e) => setSemesterInput(e.target.value)} placeholder="114-1" />
               )}
-              {Array.isArray(courseImportDryRun.samples?.invalidRows) && courseImportDryRun.samples.invalidRows.length > 0 ? (
-                <details className="mb-2">
-                  <summary className="text-muted" style={{ cursor: 'pointer' }}>錯誤列樣本</summary>
-                  <pre className="small bg-light p-2 rounded mt-1 mb-0 text-break" style={{ maxHeight: 180, overflow: 'auto' }}>
-                    {JSON.stringify(courseImportDryRun.samples.invalidRows, null, 2)}
-                  </pre>
-                </details>
-              ) : null}
             </div>
-          )}
-          {courseImportApply && (
-            <div className="alert alert-success py-2 mt-3 mb-0">
-              已寫入：新增課程 {courseImportApply.createdCourses || 0}、更新課程 {courseImportApply.updatedCourses || 0}、新增修課{' '}
-              {courseImportApply.createdEnrollments || 0}、更新修課 {courseImportApply.updatedEnrollments || 0}、新增 outcomes{' '}
-              {courseImportApply.createdOutcomeMappings || 0}。
+            <div className="col-lg-3 col-md-6">
+              <button type="button" className="btn btn-primary w-100" disabled={profileState.status === 'loading'} onClick={loadProfile}>
+                查詢學生學習歷程
+              </button>
             </div>
-          )}
+            <div className="col-lg-2 col-md-6">
+              <button type="button" className="btn btn-outline-secondary w-100" disabled={overviewState.status === 'loading'} onClick={loadOverview}>
+                查看學期總覽
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-      )}
 
-      {error && (
-        <div className="alert alert-danger py-2">
-          <div>{error}</div>
-          {requestId ? <div className="small mt-1 text-break">Request-ID：{requestId}</div> : null}
+      <div className="card mb-3">
+        <div className="card-body">
+          <div className="fw-semibold mb-2">使用方式：</div>
+          <ol className="mb-0">
+            <li>輸入學生學號並選擇學期</li>
+            <li>點擊「查詢學生學習歷程」</li>
+            <li>查看該學生的 CEFR、BESTEP、活動參與與風險狀態</li>
+          </ol>
         </div>
-      )}
-      {loading && <div className="alert alert-info py-2 mb-3">載入中…</div>}
+      </div>
 
-      {!loading && searched && !profile && !error && (
-        <div className="alert alert-secondary py-2">請按「載入」以查詢學生聚合資料。</div>
-      )}
+      <ul className="nav nav-tabs mb-3">
+        {tabItems.map((tab) => (
+          <li className="nav-item" key={tab.id}>
+            <button type="button" className={`nav-link ${activeTab === tab.id ? 'active' : ''}`} onClick={() => selectTab(tab.id)}>
+              {tab.label}
+            </button>
+          </li>
+        ))}
+      </ul>
 
-      {profile && (
+      {activeTab === 'student' ? (
         <>
-          {noStudent && (
-            <div className="alert alert-warning py-2 mb-3">
-              <strong>查無學生：</strong>
-              各來源皆無此學號之紀錄（請確認學號或是否已有名冊／報名／預約資料）。
-            </div>
-          )}
-
-          {!noStudent && noExamHint && (
-            <div className="alert alert-light border py-2 mb-3 small">
-              此學號有其他紀錄，但目前<strong>無英檢／BESTEP／長期追蹤成績</strong>可顯示。
-            </div>
-          )}
-
-          {!noStudent && noActivityHint && (
-            <div className="alert alert-light border py-2 mb-3 small">
-              此學號有英檢或學籍資料，但目前<strong>無活動預約／簽到／BESTEP 出席</strong>可顯示。
-            </div>
-          )}
-
-          <div className="row g-3">
-            {/* A. 學生基本資料 */}
-            <div className="col-12">
-              <div className="card">
-                <div className="card-header py-2 d-flex justify-content-between align-items-center">
-                  <span className="fw-semibold">A. 學生基本資料</span>
-                  <Link
-                    className="btn btn-outline-primary btn-sm"
-                    to={`/admin/learning-journey/students/${encodeURIComponent(st.studentId || studentInput || '')}`}
-                  >
-                    開啟正式學習歷程頁
-                  </Link>
-                </div>
-                <div className="card-body small row g-2">
-                  <div className="col-md-3">
-                    <div className="text-muted">學號</div>
-                    <div>{st.studentId || EMPTY}</div>
-                  </div>
-                  <div className="col-md-3">
-                    <div className="text-muted">姓名（et_student_master）</div>
-                    <div>{st.etStudentMaster?.name || EMPTY}</div>
-                  </div>
-                  <div className="col-md-3">
-                    <div className="text-muted">系所／學院（主檔）</div>
-                    <div>
-                      {st.etStudentMaster?.dept || EMPTY} {st.etStudentMaster?.college ? `／${st.etStudentMaster.college}` : ''}
-                    </div>
-                  </div>
-                  <div className="col-md-3">
-                    <div className="text-muted">LJS studentPk</div>
-                    <div>{st.ljsStudentPk != null ? st.ljsStudentPk : EMPTY}</div>
-                  </div>
-                  <div className="col-12 mt-2">
-                    <Link className="btn btn-outline-primary btn-sm me-2" to={`/admin/english-test-tracking/students/${encodeURIComponent(st.studentId || '')}`}>
-                      英檢 V2 學生頁
-                    </Link>
-                    <Link className="btn btn-outline-secondary btn-sm" to={`/admin/english-test-tracking/student-timeline/${encodeURIComponent(st.studentId || '')}`}>
-                      Timeline 專頁
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* B. 英檢歷程 */}
-            <div className="col-md-6">
-              <div className="card h-100">
-                <div className="card-header py-2 fw-semibold">B. 英檢歷程</div>
-                <div className="card-body small">
-                  {!hasExamData && !noStudent ? (
-                    <p className="text-muted mb-0">尚無培力報名、et 測驗紀錄、BESTEP 成績或學期最佳彙整。</p>
-                  ) : null}
-                  {regs.length > 0 && (
-                    <>
-                      <div className="text-muted mb-1">培力報名（最近 {Math.min(5, regs.length)} 筆）</div>
-                      <ul className="mb-2 ps-3">
-                        {regs.slice(0, 5).map((r) => (
-                          <li key={r.id}>
-                            {r.semester || EMPTY} — {r.examType || EMPTY} — {r.status || EMPTY}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  <div className="text-muted">et_exam_attempts</div>
-                  <div className="mb-2">{attempts.length} 筆</div>
-                  <div className="text-muted">BESTEP 成績列（bestep_exam_scores）</div>
-                  <div className="mb-2">{Number(flags.bestepScoresCount || 0)} 筆</div>
-                  <div className="text-muted">BESTEP 出席列（bestep_attendance）</div>
-                  <div className="mb-2">{Number(flags.bestepAttendanceCount || 0)} 筆</div>
-                  <div className="text-muted">學期最佳（et_semester_student_best_skills）</div>
-                  <div>{flags.hasBestSkills ? '有資料' : '無'}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* C. 活動參與 */}
-            <div className="col-md-6">
-              <div className="card h-100">
-                <div className="card-header py-2 fw-semibold">C. 活動參與</div>
-                <div className="card-body small">
-                  {!hasActivityData && !noStudent ? (
-                    <p className="text-muted mb-0">尚無預約簽到、LJS 活動參與或 BESTEP 出席紀錄。</p>
-                  ) : null}
-                  <div className="mb-2">預約＋活動列共 {activities.length} 筆</div>
-                  <ul className="ps-3 mb-0">
-                    {activities.slice(0, 8).map((row, idx) => (
-                      <li key={idx}>
-                        {row.kind === 'reservation' && (
-                          <>
-                            預約：{row.event?.eventType || row.event?.name || '活動'} — {row.reservation?.checkinStatus || EMPTY}
-                          </>
-                        )}
-                        {row.kind === 'activity_participation' && (
-                          <>
-                            LJS：{row.participation?.activityType} — {row.participation?.attendanceStatus}
-                          </>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* D. 修課紀錄 */}
-            <div className="col-md-6">
-              <div className="card h-100">
-                <div className="card-header py-2 fw-semibold">D. 修課紀錄</div>
-                <div className="card-body small">
-                  {!hasCourseData && !noStudent ? (
-                    <p className="text-muted mb-0">尚無修課紀錄。</p>
-                  ) : null}
-                  {hasCourseData ? <div className="mb-2">修課列共 {courses.length} 筆</div> : null}
-                  <ul className="ps-3 mb-0">
-                    {courses.slice(0, 8).map((row, idx) => {
-                      const course = row.course || {};
-                      return (
-                        <li key={row.id || row.enrollmentId || idx}>
-                          {row.semesterId || course.semesterId || EMPTY}：{course.courseCode || EMPTY} {course.courseName || EMPTY}
-                          {row.passStatus ? `（${row.passStatus}）` : ''}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* E. Timeline */}
-            <div className="col-12">
-              <div className="card">
-                <div className="card-header py-2 fw-semibold">E. Timeline（最多顯示 40 筆）</div>
-                <div className="card-body p-0 table-responsive">
-                  {timeline.length === 0 ? (
-                    <div className="p-3 text-muted small">尚無 timeline 事件。</div>
-                  ) : (
-                    <table className="table table-sm table-striped mb-0 small">
-                      <thead>
-                        <tr>
-                          <th>日期</th>
-                          <th>類型</th>
-                          <th>標題</th>
-                          <th>狀態</th>
-                          <th>來源</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {timeline.slice(0, 40).map((ev) => (
-                          <tr key={ev.id || `${ev.type}-${ev.date}`}>
-                            <td className="text-nowrap">{ev.date || EMPTY}</td>
-                            <td>
-                              {ev.type === 'course_record' ? (
-                                <span className="badge bg-info text-dark">修課紀錄</span>
-                              ) : (
-                                ev.type
-                              )}
-                            </td>
-                            <td>
-                              {ev.title}
-                              {ev.type === 'course_record' && ev.payload ? (
-                                <div className="text-muted">
-                                  {ev.payload.courseCode || EMPTY}；{ev.payload.departmentName || EMPTY}；學分 {ev.payload.credits || EMPTY}
-                                </div>
-                              ) : null}
-                            </td>
-                            <td>{ev.status || EMPTY}</td>
-                            <td>{ev.source}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {dq.length > 0 && (
-              <div className="col-12">
-                <div className="card border-secondary">
-                  <div className="card-header py-2 bg-light small">資料品質（dataQuality）</div>
-                  <div className="card-body small py-2">
-                    <ul className="mb-0 ps-3">
-                      {dq.map((q, i) => (
-                        <li key={i}>
-                          <span className="text-muted">[{q.severity}]</span> {q.code}: {q.message}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          {profileState.status === 'idle' ? <EmptyState>尚未查詢資料，請輸入學號與學期後開始查詢。</EmptyState> : null}
+          {profileState.status === 'loading' ? <LoadingState /> : null}
+          {profileState.status === 'empty' ? <EmptyState>查無此學生於該學期的學習歷程資料。</EmptyState> : null}
+          {profileState.status === 'error' ? <ErrorState message={profileState.error} requestId={profileState.requestId} /> : null}
+          {profileState.status === 'success' ? <ProfileSummary profile={profileState.data} studentInput={studentInput} semesterInput={semesterInput} /> : null}
         </>
-      )}
+      ) : null}
 
-      {dashboard && dashboard.semesters && dashboard.semesters[0] && (
-        <div className="mt-4">
-          <button type="button" className="btn btn-link btn-sm p-0 mb-1" onClick={() => setDebugOpen((o) => !o)}>
-            {debugOpen ? '▼' : '▶'} Debug：學期 dashboard 原始 JSON
-          </button>
-          {debugOpen && (
-            <div className="card">
-              <div className="card-body small">
-                <pre className="mb-0" style={{ whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto' }}>
-                  {JSON.stringify(dashboard, null, 2)}
-                </pre>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {activeTab === 'overview' ? (
+        <>
+          {overviewState.status === 'idle' ? <EmptyState>尚未取得學期總覽，請選擇學期後點擊「查看學期總覽」。</EmptyState> : null}
+          {overviewState.status === 'loading' ? <LoadingState>正在載入學期總覽資料...</LoadingState> : null}
+          {overviewState.status === 'error' ? <ErrorState message={overviewState.error} requestId={overviewState.requestId} /> : null}
+          {overviewState.status === 'success' ? (
+            <SemesterOverview
+              dashboard={overviewState.dashboard}
+              summary={overviewState.summary}
+              departmentStats={overviewState.departmentStats}
+              cefrDistribution={overviewState.cefrDistribution}
+              quality={overviewState.quality}
+              riskData={overviewState.risk}
+              historyRecords={historyRecords}
+            />
+          ) : null}
+        </>
+      ) : null}
+
+      {activeTab === 'students' ? (
+        <StudentsTab
+          state={studentsState}
+          filters={studentFilters}
+          onFilterChange={(patch) => setStudentFilters((prev) => ({ ...prev, ...patch }))}
+          onQuery={(patch) => loadStudents(patch)}
+          onPage={(offset) => loadStudents({ offset })}
+        />
+      ) : null}
+
+      {activeTab === 'diagnostics' && canViewDiagnostics ? (
+        <DiagnosticsPanel
+          canViewDiagnostics={canViewDiagnostics}
+          diagnostics={diagnostics}
+          importHistories={overviewState.importHistories}
+          quality={overviewState.quality}
+          rebuilding={rebuilding}
+          rebuildResult={rebuildResult}
+          rebuildError={rebuildError}
+          onRebuild={handleRebuildBestSkills}
+          onLoadStatus={() => loadDiagnostic('status', () => getLearningJourneyReadModelStatus(token))}
+          onLoadReadiness={() => loadDiagnostic('readiness', () => getLearningJourneyReadiness(token, semesterInput.trim()))}
+          onLoadSummaryCompare={() => loadDiagnostic('summaryCompare', () => getLearningJourneyEnglishTestSummaryCompare(token, semesterInput.trim()))}
+          onLoadStudentsCompare={() => loadDiagnostic('studentsCompare', () => getLearningJourneyEnglishTestStudentsCompare(token, semesterInput.trim()))}
+        />
+      ) : null}
+
+      {activeTab !== 'diagnostics' ? (
+        <DiagnosticsPanel
+          canViewDiagnostics={canViewDiagnostics}
+          diagnostics={diagnostics}
+          importHistories={overviewState.importHistories}
+          quality={overviewState.quality}
+          rebuilding={rebuilding}
+          rebuildResult={rebuildResult}
+          rebuildError={rebuildError}
+          onRebuild={handleRebuildBestSkills}
+          onLoadStatus={() => loadDiagnostic('status', () => getLearningJourneyReadModelStatus(token))}
+          onLoadReadiness={() => loadDiagnostic('readiness', () => getLearningJourneyReadiness(token, semesterInput.trim()))}
+          onLoadSummaryCompare={() => loadDiagnostic('summaryCompare', () => getLearningJourneyEnglishTestSummaryCompare(token, semesterInput.trim()))}
+          onLoadStudentsCompare={() => loadDiagnostic('studentsCompare', () => getLearningJourneyEnglishTestStudentsCompare(token, semesterInput.trim()))}
+        />
+      ) : null}
     </div>
   );
 }

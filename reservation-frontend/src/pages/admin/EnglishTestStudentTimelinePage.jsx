@@ -41,15 +41,15 @@ export default function EnglishTestStudentTimelinePage() {
     <div className="container-fluid py-3">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h5 className="mb-0">學生歷程（Timeline）</h5>
-        <Link className="btn btn-outline-secondary btn-sm" to={`/admin/english-test-tracking/students/${encodeURIComponent(studentId || '')}`}>
-          返回 V2 學生頁
+        <Link className="btn btn-outline-secondary btn-sm" to={`/admin/learning-journey/students/${encodeURIComponent(studentId || '')}`}>
+          返回學生學習歷程
         </Link>
       </div>
       {loading && <div className="alert alert-info py-2">載入中…</div>}
       {error && <div className="alert alert-danger py-2">{error}</div>}
       {!loading && !error && data && (
         <p className="small text-muted">
-          學號：{data.student?.studentId || studentId}；名冊／培力／BESTEP／活動／修課等事件共 {timeline.length} 筆（依聚合 read model）。
+          學號：{data.student?.studentId || studentId}；名冊／培力／BESTEP／活動／修課等事件共 {timeline.length} 筆。
         </p>
       )}
       {!loading && timeline.length === 0 && !error && <div className="text-muted">尚無可顯示的 timeline 事件。</div>}
