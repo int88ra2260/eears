@@ -49,7 +49,7 @@ export default function EnglishTestStudentTimelinePage() {
       {error && <div className="alert alert-danger py-2">{error}</div>}
       {!loading && !error && data && (
         <p className="small text-muted">
-          學號：{data.student?.studentId || studentId}；名冊／培力／BESTEP／活動等事件共 {timeline.length} 筆（依聚合 read model）。
+          學號：{data.student?.studentId || studentId}；名冊／培力／BESTEP／活動／修課等事件共 {timeline.length} 筆（依聚合 read model）。
         </p>
       )}
       {!loading && timeline.length === 0 && !error && <div className="text-muted">尚無可顯示的 timeline 事件。</div>}
@@ -58,11 +58,16 @@ export default function EnglishTestStudentTimelinePage() {
           <li key={item.id || `${item.type}-${item.date}`} className="mb-1 border-bottom pb-1">
             <span className="text-muted">{item.date || EMPTY}</span>
             {' · '}
-            <strong>{item.type}</strong>
+            <strong>{item.type === 'course_record' ? '修課紀錄' : item.type}</strong>
             {' — '}
             {item.title || EMPTY}
             {item.status ? `（${item.status}）` : ''}
             <span className="text-muted"> — {item.source || EMPTY}</span>
+            {item.type === 'course_record' && item.payload ? (
+              <div className="text-muted ms-3">
+                {item.payload.courseCode || EMPTY}；{item.payload.departmentName || EMPTY}；學分 {item.payload.credits || EMPTY}
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>

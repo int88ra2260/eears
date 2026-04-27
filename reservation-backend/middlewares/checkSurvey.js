@@ -4,6 +4,7 @@ const { getFeatureFlag } = require('../utils/featureFlags');
 const { Op } = require('sequelize');
 const { resolveGateContext, hasCompletedForGate } = require('../services/surveyGateService');
 const { getCurrentSemester } = require('../utils/semester');
+const { logFallbackUsage } = require('../services/learningJourney/learningJourneyFallbackLogger');
 
 /**
  * 通用問卷檢查中間件
@@ -112,6 +113,15 @@ async function checkSurvey(req, res, next) {
     }
 
     // 根據活動類型動態查找相關的問卷設定（保留相容：無產品問卷資料時）
+    logFallbackUsage({
+      requestId: req.requestId,
+      module: 'survey_gate',
+      api: req.originalUrl,
+      canonicalSource: 'surveys/survey_rules/survey_responses',
+      fallbackSource: 'SurveySettings + legacy survey response tables',
+      reason: `活動類型 ${eventType} 尚未解析到產品化 survey/rule，使用 legacy 問卷 gating`,
+      severity: 'warning'
+    });
     // 先獲取所有啟用的問卷設定，然後在代碼中過濾（因為 JSON 欄位查詢在不同資料庫中可能有差異）
     const allSurveySettings = await SurveySettings.findAll({
       where: {

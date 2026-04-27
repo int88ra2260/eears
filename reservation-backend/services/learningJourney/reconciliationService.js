@@ -57,7 +57,9 @@ function sectionStatus(sourceCount, aggregateCount, sourceOnlyLen, aggregateOnly
   return 'warning';
 }
 
-async function safe(fn, label, errors) {
+async function safe(labelOrFn, fnOrLabel, errors) {
+  const label = typeof labelOrFn === 'string' ? labelOrFn : fnOrLabel;
+  const fn = typeof labelOrFn === 'function' ? labelOrFn : fnOrLabel;
   try {
     return await fn();
   } catch (e) {

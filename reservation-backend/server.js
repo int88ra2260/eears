@@ -51,6 +51,7 @@ const { requestLogger } = require('./middlewares/requestLogger');
 const { expireLearningPartnerTeams } = require('./scripts/learningPartnerExpireCron');
 const adminLogsRouter = require('./routes/adminLogsRouter');
 const studentsRouter = require('./routes/studentsRouter');
+const { isLearningJourneyV3ReadModelEnabled } = require('./services/learningJourney/learningJourneyFeatureFlags');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -121,9 +122,48 @@ app.use(errorHandler);
 // 資料庫連線 & 啟動伺服器
 const logger = require('./utils/logger');
 
+async function checkLearningJourneyCanonicalTables() {
+  try {
+    const enabled = isLearningJourneyV3ReadModelEnabled();
+    const required = [
+      'exam_attempts',
+      'exam_registrations',
+      'activity_participations',
+      'student_semester_profiles'
+    ];
+    const qi = sequelize.getQueryInterface();
+    const rawTables = await qi.showAllTables();
+    const tableSet = new Set(
+      (rawTables || []).map((t) => {
+        if (typeof t === 'string') return t.toLowerCase();
+        if (t && typeof t === 'object') {
+          if (t.tableName) return String(t.tableName).toLowerCase();
+          const vals = Object.values(t);
+          if (vals.length) return String(vals[0]).toLowerCase();
+        }
+        return String(t || '').toLowerCase();
+      })
+    );
+    const missing = required.filter((x) => !tableSet.has(String(x).toLowerCase()));
+    if (!enabled) return;
+    if (missing.length === 0) {
+      logger.info('[startup-check] Learning Journey canonical tables ready');
+      return;
+    }
+    const msg = `[startup-check] Learning Journey v3 enabled but canonical tables missing: ${missing.join(', ')}. APIs should fallback to legacy when v3 read fails.`;
+    if (process.env.NODE_ENV === 'production') logger.error(msg);
+    else logger.warn(msg);
+  } catch (e) {
+    const msg = `[startup-check] canonical table check failed: ${(e && e.message) || String(e)}.`;
+    if (process.env.NODE_ENV === 'production') logger.error(msg);
+    else logger.warn(msg);
+  }
+}
+
 sequelize.authenticate()
   .then(async () => {
     logger.simple.success('資料庫連線成功');
+    await checkLearningJourneyCanonicalTables();
 
     if (process.env.ENABLE_DB_SYNC === 'true') {
       await sequelize.sync({ alter: false, force: false });

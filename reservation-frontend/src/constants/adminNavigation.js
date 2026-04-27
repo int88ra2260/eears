@@ -51,8 +51,8 @@ export function isWorkerRestrictedMenu(c) {
 }
 
 /**
- * @typedef {{ id: string, label: string, path: string, matchPrefixes: string[], visibility: string, breadcrumbLabel?: string, pageTitle?: string }} AdminNavLeaf
- * @typedef {{ id: string, label: string, visibility: string, expandable?: boolean, children?: AdminNavLeaf[], path?: string, matchPrefixes?: string[], pageTitle?: string, breadcrumbLabel?: string }} AdminNavSection
+ * @typedef {{ id: string, label: string, path: string, matchPrefixes: string[], visibility: string, breadcrumbLabel?: string, pageTitle?: string, hiddenFromNav?: boolean }} AdminNavLeaf
+ * @typedef {{ id: string, label: string, visibility: string, expandable?: boolean, children?: AdminNavLeaf[], path?: string, matchPrefixes?: string[], pageTitle?: string, breadcrumbLabel?: string, hiddenFromNav?: boolean }} AdminNavSection
  */
 
 /** @type {AdminNavSection[]} */
@@ -108,8 +108,17 @@ export const ADMIN_NAV_SECTIONS = [
     expandable: true,
     children: [
       {
+        id: 'learning-journey',
+        label: '英語學習歷程中心（每日維運）',
+        path: '/admin/learning-journey',
+        matchPrefixes: ['/admin/learning-journey'],
+        visibility: 'english',
+        pageTitle: '英語學習歷程中心',
+        breadcrumbLabel: '英語學習歷程中心',
+      },
+      {
         id: 'english-registration',
-        label: '培力英檢管理',
+        label: '培力英檢管理（營運）',
         path: '/admin/english-test',
         matchPrefixes: ['/admin/english-test', '/admin/english-tests'],
         visibility: 'english',
@@ -118,30 +127,22 @@ export const ADMIN_NAV_SECTIONS = [
       },
       {
         id: 'english-tracking',
-        label: '英檢長期追蹤',
+        label: '英檢長期追蹤（V2 維運）',
         path: '/admin/english-test-tracking',
         matchPrefixes: ['/admin/english-test-tracking', '/admin/english-tests/tracking'],
         visibility: 'english',
-        pageTitle: '英檢長期追蹤',
+        pageTitle: '英檢長期追蹤（V2 維運）',
         breadcrumbLabel: '英檢長期追蹤',
       },
       {
         id: 'english-tracking-v2',
-        label: '英檢長期追蹤 V2',
+        label: '英檢長期追蹤 V2（Legacy alias）',
         path: '/admin/english-test-v2',
         matchPrefixes: ['/admin/english-test-v2'],
         visibility: 'english',
         pageTitle: '英檢長期追蹤 V2',
         breadcrumbLabel: '英檢長期追蹤 V2',
-      },
-      {
-        id: 'learning-journey',
-        label: '英語學習歷程中心',
-        path: '/admin/learning-journey',
-        matchPrefixes: ['/admin/learning-journey'],
-        visibility: 'english',
-        pageTitle: '英語學習歷程中心',
-        breadcrumbLabel: '英語學習歷程中心',
+        hiddenFromNav: true,
       },
       {
         id: 'bestep-import',
@@ -198,12 +199,13 @@ export const ADMIN_NAV_SECTIONS = [
       },
       {
         id: 'survey-manage',
-        label: '問卷管理',
+        label: '問卷管理（Legacy）',
         path: '/admin/surveys',
         matchPrefixes: ['/admin/surveys'],
         visibility: 'canViewSurvey',
-        pageTitle: '問卷管理',
+        pageTitle: '問卷管理（Legacy）',
         breadcrumbLabel: '問卷管理',
+        hiddenFromNav: true,
       },
       {
         id: 'survey-product',
@@ -216,12 +218,13 @@ export const ADMIN_NAV_SECTIONS = [
       },
       {
         id: 'survey-settings',
-        label: '問卷設定',
+        label: '問卷設定（Legacy）',
         path: '/admin/survey-settings',
         matchPrefixes: ['/admin/survey-settings', '/admin/surveys/settings'],
         visibility: 'adminOnly',
-        pageTitle: '問卷設定',
+        pageTitle: '問卷設定（Legacy）',
         breadcrumbLabel: '問卷設定',
+        hiddenFromNav: true,
       },
     ],
   },
@@ -582,7 +585,7 @@ export function filterVisibleNav(sections, c) {
         return null;
       }
       if (section.children?.length) {
-        const children = section.children.filter((ch) => isNavItemVisible(ch.visibility, c));
+        const children = section.children.filter((ch) => !ch.hiddenFromNav && isNavItemVisible(ch.visibility, c));
         if (children.length === 0) {
           return null;
         }

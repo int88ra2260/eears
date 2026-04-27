@@ -15,7 +15,6 @@ import PublicLayout from './components/layout/PublicLayout';
 import ErrorBoundary from './components/system/ErrorBoundary';
 
 import HomePage from './pages/HomePage';
-import EventList from './components/EventList';
 import EventsPage from './pages/EventsPage';
 import ActivitiesPage from './pages/ActivitiesPage';
 import ActivityDetailPage from './pages/ActivityDetailPage';
@@ -34,8 +33,6 @@ import AdminLayout from './components/AdminLayout';
 import AdminHome from './components/AdminHome';
 import ClassOverview from './components/ClassOverview';
 import ViolationManagement from './components/ViolationManagement';
-import SurveyManagement from './components/SurveyManagement';
-import SurveySettings from './components/SurveySettings';
 import LoginPage from './components/LoginPage';
 import SurveyPage from './components/SurveyPage';
 import SurveyChoicePage from './components/SurveyChoicePage';
@@ -48,7 +45,6 @@ import LearningPartnerRegistrationPage from './components/LearningPartnerRegistr
 import LearningPartnerStatusPage from './components/LearningPartnerStatusPage';
 import LearningPartnerApprovePage from './components/LearningPartnerApprovePage';
 import ClassBestepOverview from './components/ClassBestepOverview';
-import EnglishTestTracking from './components/EnglishTestTracking';
 import StudentProfilePage from './pages/admin/StudentProfilePage';
 import StudentLearningProfileSearchPage from './components/StudentLearningProfileSearchPage';
 import TeacherDashboardPage from './components/TeacherDashboardPage';
@@ -80,6 +76,7 @@ import EnglishTestStudentTimelinePage from './pages/admin/EnglishTestStudentTime
 import EnglishTestRiskPage from './pages/admin/EnglishTestRiskPage';
 import EnglishTestImportHubPage from './pages/admin/EnglishTestImportHubPage';
 import LearningJourneyHubPage from './pages/admin/LearningJourneyHubPage';
+import LearningJourneyStudentPage from './pages/admin/LearningJourneyStudentPage';
 import { fetchClient } from './utils/fetchClient';
 import ToastProvider from './components/ui/ToastProvider';
 
@@ -95,6 +92,25 @@ function LegacyEnglishTestStudentRedirect() {
   return <Navigate to={`/admin/english-test-tracking/students/${studentId}`} replace />;
 }
 
+function LegacyArchiveNotice({ title, replacementPath, replacementLabel, note }) {
+  return (
+    <div className="container py-4">
+      <div className="card border-warning">
+        <div className="card-header bg-warning-subtle fw-semibold">{title}</div>
+        <div className="card-body">
+          <p className="mb-2">
+            此 legacy 入口已封存，不再作為正式維運頁使用。
+          </p>
+          {note ? <p className="text-muted mb-3">{note}</p> : null}
+          <a className="btn btn-primary btn-sm" href={replacementPath}>
+            前往{replacementLabel}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // 內部組件，用於使用 useLocation hook
 function AppContent() {
   const location = useLocation();
@@ -108,7 +124,7 @@ function AppContent() {
   const [username, setUsername] = useState(localStorage.getItem('username') || '');
   const [mustResetPassword, setMustResetPassword] = useState(localStorage.getItem('mustResetPassword') === 'true');
   const [showModal, setShowModal] = useState(true);
-  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [, setRegistrationEnabled] = useState(true);
 
   // 載入報名按鈕開關狀態
   useEffect(() => {
@@ -142,8 +158,6 @@ function AppContent() {
     window.addEventListener('eears:access-stale', onAccessStale);
     return () => window.removeEventListener('eears:access-stale', onAccessStale);
   }, []);
-
-  const isPublicPage = location.pathname !== '/login' && !location.pathname.startsWith('/admin');
 
   // 舊首頁 hash 錨點相容：/#announcements → /announcements，/#faq → /faq，/#contact → /contact
   useEffect(() => {
@@ -428,16 +442,46 @@ function AppContent() {
               <Route path="survey-analytics/:surveyId" element={<AdminSurveyAnalyticsPage />} />
               <Route path="survey-health" element={<AdminSurveyDataHealthPage />} />
               <Route path="survey-answer-mappings" element={<AdminSurveyAnswerMappingPage />} />
-              <Route path="surveys" element={<SurveyManagement />} />
-              <Route path="survey-settings" element={<SurveySettings />} />
+              <Route
+                path="surveys"
+                element={(
+                  <LegacyArchiveNotice
+                    title="Legacy 問卷管理已封存"
+                    replacementPath="/admin/survey-center"
+                    replacementLabel="問卷中心"
+                    note="舊問卷管理頁僅保留歷史資料脈絡；正式問卷請使用問卷中心、問卷規則與作答管理。"
+                  />
+                )}
+              />
+              <Route
+                path="survey-settings"
+                element={(
+                  <LegacyArchiveNotice
+                    title="Legacy 問卷設定已封存"
+                    replacementPath="/admin/survey-rules"
+                    replacementLabel="問卷規則"
+                    note="新規則不得只寫 legacy SurveySettings；請改用產品化問卷規則。"
+                  />
+                )}
+              />
               <Route path="announcements" element={<AnnouncementManagementPage />} />
               <Route path="logs" element={<AdminAuditLogsPage />} />
               <Route path="settings/system" element={<SystemSettingsPage />} />
               <Route path="diagnostics" element={<InternalDiagnosticsPage />} />
               <Route path="english-test" element={<EnglishTestManagement />} />
               <Route path="english-test-tracking" element={<EnglishTestDashboardPage />} />
-              <Route path="english-test-tracking/legacy" element={<EnglishTestTracking />} />
-              <Route path="english-test-v2" element={<Navigate to="/admin/english-test-tracking" replace />} />
+              <Route
+                path="english-test-tracking/legacy"
+                element={(
+                  <LegacyArchiveNotice
+                    title="Legacy 英檢追蹤頁已封存"
+                    replacementPath="/admin/learning-journey"
+                    replacementLabel="英語學習歷程中心"
+                    note="如需檢查過渡期 V2 維運資料，請使用英檢長期追蹤（V2 維運）或 Learning Journey 治理總覽。"
+                  />
+                )}
+              />
+              <Route path="english-test-v2" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route path="english-test-v2/students" element={<Navigate to="/admin/english-test-tracking/students" replace />} />
               <Route path="english-test-v2/students/:studentId" element={<LegacyEnglishTestStudentRedirect />} />
               <Route path="english-test-tracking/students" element={<EnglishTestStudentListPage />} />
@@ -446,6 +490,7 @@ function AppContent() {
               <Route path="english-test-tracking/risk" element={<EnglishTestRiskPage />} />
               <Route path="english-test/import" element={<EnglishTestImportHubPage />} />
               <Route path="learning-journey" element={<LearningJourneyHubPage />} />
+              <Route path="learning-journey/students/:studentId" element={<LearningJourneyStudentPage />} />
               <Route path="analytics/student/:studentId" element={<StudentProfilePage />} />
               <Route path="analytics/students" element={<StudentLearningProfileSearchPage />} />
             <Route path="analytics/overview" element={<AdminAnalyticsPage />} />

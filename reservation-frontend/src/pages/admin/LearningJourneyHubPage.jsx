@@ -5,10 +5,17 @@ import {
   getLearningJourneySemesterDashboard,
   getLearningJourneyReconciliation,
   getLearningJourneyReadiness,
+  getLearningJourneyReadModelStatus,
+  getLearningJourneyDataFreshness,
+  getLearningJourneyGovernanceOverview,
+  getLearningJourneyEnglishTestSummaryV3,
   getLearningJourneyEnglishTestSummaryCompare,
   getLearningJourneyEnglishTestStudentsCompare,
   getLearningJourneyEnglishTestStudentDetailCompare,
+  getLearningJourneyRiskStudents,
   postLearningJourneySync,
+  postLearningJourneyCourseImportDryRun,
+  postLearningJourneyCourseImportApply,
 } from '../../services/learningJourneyApi';
 
 const EMPTY = '—';
@@ -49,8 +56,32 @@ function isStudentsListTrialHint(payload) {
   return dc < 5 && dc / maxC < 0.05;
 }
 
+function parseJwtPayload(token) {
+  try {
+    if (!token) return null;
+    const parts = String(token).split('.');
+    if (parts.length < 2) return null;
+    const raw = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(raw)
+        .split('')
+        .map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
+        .join('')
+    );
+    return JSON.parse(json);
+  } catch (_) {
+    return null;
+  }
+}
+
 export default function LearningJourneyHubPage() {
   const token = localStorage.getItem('token') || '';
+  const role = (localStorage.getItem('userRole') || '').toLowerCase();
+  const tokenPayload = parseJwtPayload(token) || {};
+  const teacherLevel = String(tokenPayload.teacherLevel || '').toLowerCase();
+  const isSuperAdmin = role === 'admin';
+  const isAdminPlus = isSuperAdmin || (role === 'teacher' && (teacherLevel === 'executive' || teacherLevel === 'et_manager'));
+  const [operationMode, setOperationMode] = useState(isSuperAdmin ? 'advanced' : 'operation');
   const [studentInput, setStudentInput] = useState('');
   const [semesterInput, setSemesterInput] = useState('114-1');
   const [profile, setProfile] = useState(null);
@@ -74,6 +105,12 @@ export default function LearningJourneyHubPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [syncRequestId, setSyncRequestId] = useState('');
+  const [courseImportFile, setCourseImportFile] = useState(null);
+  const [courseImportDryRun, setCourseImportDryRun] = useState(null);
+  const [courseImportApply, setCourseImportApply] = useState(null);
+  const [courseImportLoading, setCourseImportLoading] = useState(false);
+  const [courseImportError, setCourseImportError] = useState('');
+  const [courseImportRequestId, setCourseImportRequestId] = useState('');
   const [compareData, setCompareData] = useState(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState('');
@@ -91,6 +128,22 @@ export default function LearningJourneyHubPage() {
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [readinessError, setReadinessError] = useState('');
   const [readinessRequestId, setReadinessRequestId] = useState('');
+  const [readModelStatusData, setReadModelStatusData] = useState(null);
+  const [readModelStatusLoading, setReadModelStatusLoading] = useState(false);
+  const [readModelStatusError, setReadModelStatusError] = useState('');
+  const [readModelStatusRequestId, setReadModelStatusRequestId] = useState('');
+  const [freshnessData, setFreshnessData] = useState(null);
+  const [freshnessLoading, setFreshnessLoading] = useState(false);
+  const [freshnessError, setFreshnessError] = useState('');
+  const [freshnessRequestId, setFreshnessRequestId] = useState('');
+  const [governanceData, setGovernanceData] = useState(null);
+  const [governanceLoading, setGovernanceLoading] = useState(false);
+  const [governanceError, setGovernanceError] = useState('');
+  const [governanceRequestId, setGovernanceRequestId] = useState('');
+  const [formalSummary, setFormalSummary] = useState(null);
+  const [riskData, setRiskData] = useState(null);
+  const [formalLoading, setFormalLoading] = useState(false);
+  const [formalError, setFormalError] = useState('');
 
   const loadProfile = useCallback(async () => {
     const sid = studentInput.trim();
@@ -187,6 +240,63 @@ export default function LearningJourneyHubPage() {
       setSyncLoading(false);
     }
   }, [semesterInput, selectedSyncSections, token]);
+
+  const runCourseImportDryRun = useCallback(async () => {
+    if (!courseImportFile) {
+      setCourseImportError('請先選擇修課紀錄 Excel 檔');
+      setCourseImportRequestId('');
+      return;
+    }
+    setCourseImportLoading(true);
+    setCourseImportError('');
+    setCourseImportRequestId('');
+    setCourseImportApply(null);
+    try {
+      const data = await postLearningJourneyCourseImportDryRun(token, courseImportFile);
+      setCourseImportDryRun(data);
+    } catch (e) {
+      setCourseImportDryRun(null);
+      setCourseImportError(e.message || '修課 dry run 失敗');
+      setCourseImportRequestId(e.requestId || '');
+    } finally {
+      setCourseImportLoading(false);
+    }
+  }, [courseImportFile, token]);
+
+  const runCourseImportApply = useCallback(async () => {
+    if (!courseImportFile) {
+      setCourseImportError('請先選擇修課紀錄 Excel 檔');
+      setCourseImportRequestId('');
+      return;
+    }
+    if (!courseImportDryRun) {
+      setCourseImportError('請先執行 dry run，確認結果後再 apply');
+      setCourseImportRequestId('');
+      return;
+    }
+    const hasBlockingIssues =
+      Number(courseImportDryRun.invalidRows || 0) > 0 || Number(courseImportDryRun.duplicateRows || 0) > 0;
+    if (hasBlockingIssues) {
+      setCourseImportError('dry run 顯示仍有錯誤或重複列，請修正檔案後再 apply');
+      setCourseImportRequestId('');
+      return;
+    }
+    const ok = window.confirm('確定要正式寫入修課紀錄？此操作會建立或更新 courses / course_enrollments。');
+    if (!ok) return;
+    setCourseImportLoading(true);
+    setCourseImportError('');
+    setCourseImportRequestId('');
+    try {
+      const data = await postLearningJourneyCourseImportApply(token, courseImportFile);
+      setCourseImportApply(data);
+    } catch (e) {
+      setCourseImportApply(null);
+      setCourseImportError(e.message || '修課 apply 失敗');
+      setCourseImportRequestId(e.requestId || '');
+    } finally {
+      setCourseImportLoading(false);
+    }
+  }, [courseImportDryRun, courseImportFile, token]);
 
   const loadEnglishTestSummaryCompare = useCallback(async () => {
     const sem = semesterInput.trim();
@@ -304,6 +414,68 @@ export default function LearningJourneyHubPage() {
     }
   }, [semesterInput, token]);
 
+  const loadReadModelStatus = useCallback(async () => {
+    setReadModelStatusLoading(true);
+    setReadModelStatusError('');
+    setReadModelStatusRequestId('');
+    try {
+      const data = await getLearningJourneyReadModelStatus(token);
+      setReadModelStatusData(data);
+    } catch (e) {
+      setReadModelStatusData(null);
+      setReadModelStatusError(e.message || '載入 read model 狀態失敗');
+      setReadModelStatusRequestId(e.requestId || '');
+    } finally {
+      setReadModelStatusLoading(false);
+    }
+  }, [token]);
+
+  const loadDataFreshness = useCallback(async () => {
+    const sem = semesterInput.trim();
+    if (!sem) {
+      setFreshnessError('請輸入學期代碼');
+      setFreshnessRequestId('');
+      return;
+    }
+    setFreshnessLoading(true);
+    setFreshnessError('');
+    setFreshnessRequestId('');
+    try {
+      const data = await getLearningJourneyDataFreshness(token, sem);
+      setFreshnessData(data);
+    } catch (e) {
+      setFreshnessData(null);
+      setFreshnessError(e.message || '資料新鮮度檢查失敗');
+      setFreshnessRequestId(e.requestId || '');
+    } finally {
+      setFreshnessLoading(false);
+    }
+  }, [semesterInput, token]);
+
+  const loadGovernanceOverview = useCallback(async () => {
+    const sem = semesterInput.trim();
+    if (!sem) {
+      setGovernanceError('請輸入學期代碼');
+      setGovernanceRequestId('');
+      return;
+    }
+    setGovernanceLoading(true);
+    setGovernanceError('');
+    setGovernanceRequestId('');
+    try {
+      const data = await getLearningJourneyGovernanceOverview(token, sem);
+      setGovernanceData(data);
+      if (data.freshness && Array.isArray(data.freshness.sections)) setFreshnessData(data.freshness);
+      if (data.risk) setRiskData({ ...(data.risk || {}), items: data.risk.topStudents || [] });
+    } catch (e) {
+      setGovernanceData(null);
+      setGovernanceError(e.message || '治理摘要載入失敗');
+      setGovernanceRequestId(e.requestId || '');
+    } finally {
+      setGovernanceLoading(false);
+    }
+  }, [semesterInput, token]);
+
   const loadDashboard = useCallback(async () => {
     const sem = semesterInput.trim();
     if (!sem) {
@@ -326,11 +498,38 @@ export default function LearningJourneyHubPage() {
     }
   }, [semesterInput, token]);
 
+  const loadFormalDashboard = useCallback(async () => {
+    const sem = semesterInput.trim();
+    if (!sem) {
+      setFormalError('請輸入學期代碼');
+      return;
+    }
+    setFormalLoading(true);
+    setFormalError('');
+    try {
+      const [summaryV3, risk, freshness] = await Promise.all([
+        getLearningJourneyEnglishTestSummaryV3(token, sem),
+        getLearningJourneyRiskStudents(token, sem),
+        getLearningJourneyDataFreshness(token, sem).catch(() => null)
+      ]);
+      setFormalSummary(summaryV3);
+      setRiskData(risk);
+      if (freshness && Array.isArray(freshness.sections)) setFreshnessData(freshness);
+    } catch (e) {
+      setFormalSummary(null);
+      setRiskData(null);
+      setFormalError(e.message || '正式儀表板載入失敗');
+    } finally {
+      setFormalLoading(false);
+    }
+  }, [semesterInput, token]);
+
   const st = profile?.student || {};
   const flags = st.aggregateFlags || {};
   const timeline = Array.isArray(profile?.timeline) ? profile.timeline : [];
   const attempts = Array.isArray(profile?.examAttempts) ? profile.examAttempts : [];
   const activities = Array.isArray(profile?.activities) ? profile.activities : [];
+  const courses = Array.isArray(profile?.courses) ? profile.courses : [];
   const regs = Array.isArray(profile?.examRegistrations) ? profile.examRegistrations : [];
   const dq = Array.isArray(profile?.dataQuality) ? profile.dataQuality : [];
 
@@ -346,6 +545,7 @@ export default function LearningJourneyHubPage() {
     flags.hasBestepAttendance;
   const hasActivityData =
     flags.hasReservations || flags.hasActivityParticipations || flags.hasBestepAttendance;
+  const hasCourseData = flags.hasCourseEnrollments || courses.length > 0;
 
   return (
     <div className="container-fluid py-3">
@@ -353,6 +553,32 @@ export default function LearningJourneyHubPage() {
       <p className="text-muted small mb-3">
         唯讀聚合（v3）：資料來自 et_*、培力報名、BESTEP、預約與 LJS。審核與匯入請仍使用既有後台功能。
       </p>
+      <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <span className="text-muted small">目前模式</span>
+        <span className={`badge ${operationMode === 'operation' ? 'bg-primary' : 'bg-secondary'}`}>
+          {operationMode === 'operation' ? '營運模式（Operation Mode）' : '管理模式（Advanced）'}
+        </span>
+        {isAdminPlus ? (
+          <div className="btn-group btn-group-sm">
+            <button
+              type="button"
+              className={`btn ${operationMode === 'operation' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setOperationMode('operation')}
+            >
+              營運模式
+            </button>
+            <button
+              type="button"
+              className={`btn ${operationMode === 'advanced' ? 'btn-secondary' : 'btn-outline-secondary'}`}
+              onClick={() => setOperationMode('advanced')}
+            >
+              管理模式
+            </button>
+          </div>
+        ) : (
+          <span className="text-muted small">（非管理員預設僅顯示營運模式）</span>
+        )}
+      </div>
 
       <div className="row g-2 mb-3 align-items-end">
         <div className="col-md-4">
@@ -383,8 +609,545 @@ export default function LearningJourneyHubPage() {
             學期摘要
           </button>
         </div>
+        <div className="col-md-1">
+          <button type="button" className="btn btn-outline-primary btn-sm w-100" disabled={formalLoading} onClick={loadFormalDashboard}>
+            正式版
+          </button>
+        </div>
       </div>
 
+      <div className="card mb-3">
+        <div className="card-header py-2 fw-semibold">Learning Journey Dashboard（正式版）</div>
+        <div className="card-body small">
+          <p className="text-muted mb-2">
+            以 Learning Journey v3 作為主視角，提供 KPI、CEFR 分布與風險學生清單（保留 rollback 與 compare 能力）。
+          </p>
+          {formalError ? <div className="alert alert-danger py-2">{formalError}</div> : null}
+          {Array.isArray(freshnessData?.sections) &&
+          freshnessData.sections.some((s) => s.status === 'stale') ? (
+            <div className="alert alert-danger py-2 mb-2">資料可能過舊，請聯絡管理員。</div>
+          ) : null}
+          {formalLoading ? <div className="alert alert-info py-2">載入中…</div> : null}
+          {!formalLoading && formalSummary && (
+            <>
+              <div className="row g-2 mb-2">
+                <div className="col-md-3">
+                  <div className="border rounded p-2 h-100">
+                    <div className="text-muted">達標率</div>
+                    <div className="fs-5 fw-semibold">{((Number(formalSummary.attainmentRate || 0) * 100).toFixed(1))}%</div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="border rounded p-2 h-100">
+                    <div className="text-muted">英檢報名率</div>
+                    <div className="fs-5 fw-semibold">
+                      {formalSummary.rosterActiveStudentCount
+                        ? `${((Number((dashboard?.semesters?.[0]?.englishRegistrationCount || 0) / Math.max(Number(formalSummary.rosterActiveStudentCount || 1), 1)) * 100).toFixed(1))}%`
+                        : EMPTY}
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="border rounded p-2 h-100">
+                    <div className="text-muted">活動參與率</div>
+                    <div className="fs-5 fw-semibold">
+                      {riskData?.metrics?.rosterCount
+                        ? `${(((Number(riskData.metrics.rosterCount || 0) - Number(riskData.metrics.riskCount || 0)) / Math.max(Number(riskData.metrics.rosterCount || 1), 1) * 100).toFixed(1))}%`
+                        : EMPTY}
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="border rounded p-2 h-100">
+                    <div className="text-muted">CEFR B2+（達標人數）</div>
+                    <div className="fs-5 fw-semibold">{formalSummary.attainedStudentCount ?? 0}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="card border-0 bg-light mb-2">
+                <div className="card-body py-2">
+                  <div className="fw-semibold mb-1">CEFR 分布（B2+ 比例）</div>
+                  {['listening', 'reading', 'speaking', 'writing'].map((sk) => {
+                    const rate = Number(formalSummary.skills?.[sk]?.rate || 0);
+                    return (
+                      <div key={sk} className="mb-1">
+                        <div className="d-flex justify-content-between">
+                          <span className="text-capitalize">{sk}</span>
+                          <span>{(rate * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="progress" style={{ height: 8 }}>
+                          <div className="progress-bar" role="progressbar" style={{ width: `${Math.max(0, Math.min(rate * 100, 100))}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+          {!formalLoading && riskData && (
+            <div className="mt-2">
+              <div className="fw-semibold mb-1">
+                Risk Students（高風險前 10）{' '}
+                <Link to="/admin/english-test-tracking/risk" className="small">
+                  查看風險頁
+                </Link>
+              </div>
+              {Array.isArray(riskData.items) && riskData.items.length > 0 ? (
+                <div className="table-responsive">
+                  <table className="table table-sm table-bordered mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th>學號</th>
+                        <th>風險分數</th>
+                        <th>原因</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {riskData.items.slice(0, 10).map((r) => (
+                        <tr key={r.studentId}>
+                          <td className="font-monospace">{r.studentId}</td>
+                          <td>{r.riskScore}</td>
+                          <td>{(r.reasons || []).map((x) => x.message).join('；')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-muted">目前無高風險學生清單。</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {operationMode === 'advanced' && (
+      <div className="card mb-3">
+        <div className="card-header py-2 fw-semibold">P4/P5 上線治理總覽（每日維運入口）</div>
+        <div className="card-body small">
+          <p className="text-muted mb-2">
+            彙整學期/系級總覽、風險學生、資料新鮮度、對帳狀態、同步批次、匯入歷程與錯誤治理。上線前用於 go/no-go 判斷，上線後作為每日維運第一個檢查面板。
+          </p>
+          <button type="button" className="btn btn-outline-primary btn-sm" disabled={governanceLoading} onClick={loadGovernanceOverview}>
+            {governanceLoading ? '載入中…' : '載入每日治理總覽'}
+          </button>
+          {governanceError && (
+            <div className="alert alert-danger py-2 mt-2 mb-0">
+              {governanceError}
+              {governanceRequestId ? <div className="small mt-1">Request-ID：{governanceRequestId}</div> : null}
+            </div>
+          )}
+          {governanceData && (
+            <div className="mt-3">
+              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span className="text-muted">整體狀態</span>
+                <span
+                  className={`badge ${
+                    governanceData.status === 'ok'
+                      ? 'bg-success'
+                      : governanceData.status === 'warning' || governanceData.status === 'stale' || governanceData.status === 'empty'
+                        ? 'bg-warning text-dark'
+                        : 'bg-danger'
+                  }`}
+                >
+                  {governanceData.status}
+                </span>
+                <span className="text-muted">產生時間：{governanceData.generatedAt || EMPTY}</span>
+              </div>
+              {Array.isArray(governanceData.recommendations) && governanceData.recommendations.length > 0 ? (
+                <div className="alert alert-info py-2">
+                  <div className="fw-semibold mb-1">上線建議</div>
+                  <ul className="mb-0 ps-3">
+                    {governanceData.recommendations.map((r, idx) => <li key={idx}>{r}</li>)}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="row g-2 mb-2">
+                <div className="col-md-3">
+                  <div className="border rounded p-2 h-100">
+                    <div className="text-muted">名冊人數</div>
+                    <div className="fs-5 fw-semibold">{governanceData.dashboard?.semesters?.[0]?.rosterActiveCount ?? 0}</div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="border rounded p-2 h-100">
+                    <div className="text-muted">風險學生</div>
+                    <div className="fs-5 fw-semibold">{governanceData.risk?.metrics?.riskCount ?? 0}</div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="border rounded p-2 h-100">
+                    <div className="text-muted">修課紀錄</div>
+                    <div className="fs-5 fw-semibold">{governanceData.imports?.courseImport?.courseEnrollmentCount ?? 0}</div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="border rounded p-2 h-100">
+                    <div className="text-muted">Quarantine</div>
+                    <div className="fs-5 fw-semibold">{governanceData.imports?.quarantineCount ?? 0}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="row g-2 mb-3">
+                <div className="col-lg-3 col-md-6">
+                  <div className="border rounded p-2 h-100">
+                    <div className="fw-semibold mb-1">Canonical Coverage</div>
+                    <div className="mb-1">
+                      <span className={`badge ${
+                        governanceData.canonicalReady?.canonicalReady
+                          ? 'bg-success'
+                          : governanceData.canonicalReady?.canonicalRequired
+                            ? 'bg-danger'
+                            : 'bg-secondary'
+                      }`}>
+                        {governanceData.canonicalReady?.canonicalRequired
+                          ? `Required from ${governanceData.canonicalReady?.requiredFromSemester || ''}`
+                          : 'Not required'}
+                      </span>
+                    </div>
+                    <div className="fs-5 fw-semibold">
+                      {Math.round((governanceData.canonicalCoverage?.coverageRate || 0) * 100)}%
+                    </div>
+                    <div className="text-muted">
+                      {(governanceData.canonicalCoverage?.coveredCount ?? 0)} / {(governanceData.canonicalCoverage?.totalCount ?? 0)} sections covered
+                    </div>
+                    {Array.isArray(governanceData.canonicalCoverage?.canonicalMissingSections) &&
+                    governanceData.canonicalCoverage.canonicalMissingSections.length > 0 ? (
+                      <div className="text-warning mt-1">
+                        缺口：{governanceData.canonicalCoverage.canonicalMissingSections.join('、')}
+                      </div>
+                    ) : (
+                      <div className="text-success mt-1">Canonical 區塊目前可判讀。</div>
+                    )}
+                    {Array.isArray(governanceData.canonicalReady?.blockingReasons) &&
+                    governanceData.canonicalReady.blockingReasons.length > 0 ? (
+                      <div className="text-danger mt-1">
+                        Ready 缺口：{governanceData.canonicalReady.blockingReasons.slice(0, 3).join('、')}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="col-lg-3 col-md-6">
+                  <div className="border rounded p-2 h-100">
+                    <div className="fw-semibold mb-1">Fallback / Legacy</div>
+                    <div className="fs-5 fw-semibold">{governanceData.fallbackUsage?.fallbackUsageCount ?? 0}</div>
+                    <div className="text-muted">近期 fallback 使用次數</div>
+                    {governanceData.legacyApiUsageWarning ? (
+                      <div className="text-warning mt-1">{governanceData.legacyApiUsageWarning}</div>
+                    ) : (
+                      <div className="text-success mt-1">目前未偵測到近期 fallback。</div>
+                    )}
+                  </div>
+                </div>
+                <div className="col-lg-3 col-md-6">
+                  <div className="border rounded p-2 h-100">
+                    <div className="fw-semibold mb-1">Job Runs</div>
+                    {governanceData.jobs?.enabled ? (
+                      <div>
+                        <div className="fs-5 fw-semibold">{(governanceData.jobs?.recent || []).length}</div>
+                        <div className="text-muted">最近任務紀錄</div>
+                        <div className="mt-1">
+                          最新：{governanceData.jobs?.recent?.[0]?.status || '尚無紀錄'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-muted">
+                        {governanceData.jobs?.message || '尚未啟用自動化任務紀錄。'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="col-lg-3 col-md-6">
+                  <div className="border rounded p-2 h-100">
+                    <div className="fw-semibold mb-1">Stale / Empty Sections</div>
+                    {Array.isArray(governanceData.freshness?.sections) ? (
+                      <div>
+                        <div className="fs-5 fw-semibold">
+                          {governanceData.freshness.sections.filter((s) => ['stale', 'empty', 'unknown'].includes(s.status)).length}
+                        </div>
+                        <div className="text-muted">
+                          {governanceData.freshness.sections
+                            .filter((s) => ['stale', 'empty', 'unknown'].includes(s.status))
+                            .map((s) => s.key)
+                            .join('、') || '全部 fresh'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-muted">尚無 freshness 資料。</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border rounded p-2 mb-3">
+                <div className="fw-semibold mb-1">Recent Job Runs</div>
+                {governanceData.jobs?.enabled ? (
+                  Array.isArray(governanceData.jobs?.recent) && governanceData.jobs.recent.length > 0 ? (
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered mb-0">
+                        <thead className="table-light">
+                          <tr><th>Job</th><th>狀態</th><th>觸發</th><th>耗時</th><th>開始時間</th><th>Request-ID</th></tr>
+                        </thead>
+                        <tbody>
+                          {governanceData.jobs.recent.slice(0, 8).map((job) => (
+                            <tr key={job.id}>
+                              <td>{job.jobName}</td>
+                              <td>
+                                <span className={`badge ${
+                                  job.status === 'success'
+                                    ? 'bg-success'
+                                    : job.status === 'running'
+                                      ? 'bg-info text-dark'
+                                      : job.status === 'skipped'
+                                        ? 'bg-secondary'
+                                        : 'bg-danger'
+                                }`}>
+                                  {job.status}
+                                </span>
+                              </td>
+                              <td>{job.triggeredBy || EMPTY}</td>
+                              <td>{job.durationMs != null ? `${job.durationMs} ms` : EMPTY}</td>
+                              <td>{job.startedAt || EMPTY}</td>
+                              <td className="font-monospace">{job.requestId || EMPTY}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-muted">{governanceData.jobs?.message || '尚無此學期 job run 紀錄。'}</div>
+                  )
+                ) : (
+                  <div className="alert alert-warning py-2 mb-0">
+                    {governanceData.jobs?.message || 'job_runs 尚未啟用或 migration 尚未執行。'}
+                  </div>
+                )}
+              </div>
+
+              <div className="row g-3">
+                <div className="col-lg-6">
+                  <div className="fw-semibold mb-1">系級/年級總覽（前 12）</div>
+                  <div className="table-responsive">
+                    <table className="table table-sm table-bordered mb-0">
+                      <thead className="table-light">
+                        <tr><th>系所</th><th>年級</th><th>人數</th></tr>
+                      </thead>
+                      <tbody>
+                        {(governanceData.classOverview || []).slice(0, 12).map((row, idx) => (
+                          <tr key={`${row.department}-${row.grade}-${idx}`}>
+                            <td>{row.department}</td>
+                            <td>{row.grade}</td>
+                            <td>{row.studentCount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="col-lg-6">
+                  <div className="fw-semibold mb-1">高風險學生（前 10）</div>
+                  <div className="table-responsive">
+                    <table className="table table-sm table-bordered mb-0">
+                      <thead className="table-light">
+                        <tr><th>學號</th><th>分數</th><th>原因</th></tr>
+                      </thead>
+                      <tbody>
+                        {(governanceData.risk?.topStudents || []).slice(0, 10).map((row) => (
+                          <tr key={row.studentId}>
+                            <td className="font-monospace">{row.studentId}</td>
+                            <td>{row.riskScore}</td>
+                            <td>{(row.reasons || []).map((x) => x.message).join('；') || EMPTY}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="col-lg-6">
+                  <div className="fw-semibold mb-1">對帳狀態</div>
+                  <div className="table-responsive">
+                    <table className="table table-sm table-bordered mb-0">
+                      <thead className="table-light">
+                        <tr><th>區塊</th><th>source</th><th>aggregate</th><th>status</th></tr>
+                      </thead>
+                      <tbody>
+                        {(governanceData.reconciliation?.sections || []).map((s) => (
+                          <tr key={s.key}>
+                            <td>{s.key}</td>
+                            <td>{s.sourceCount}</td>
+                            <td>{s.aggregateCount}</td>
+                            <td>{s.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="col-lg-6">
+                  <div className="fw-semibold mb-1">最近同步/匯入治理</div>
+                  <div className="table-responsive">
+                    <table className="table table-sm table-bordered mb-0">
+                      <thead className="table-light">
+                        <tr><th>批次/匯入</th><th>狀態</th><th>錯誤</th><th>時間</th></tr>
+                      </thead>
+                      <tbody>
+                        {(governanceData.imports?.migrationBatches || []).slice(0, 5).map((b) => (
+                          <tr key={`batch-${b.id}`}>
+                            <td>{b.batchKey || b.migrationName}</td>
+                            <td>{b.status}</td>
+                            <td>{b.errorCount}</td>
+                            <td>{b.startedAt || EMPTY}</td>
+                          </tr>
+                        ))}
+                        {(governanceData.imports?.etAttemptImports || []).slice(0, 5).map((r) => (
+                          <tr key={`et-${r.id}`}>
+                            <td>{r.importName}</td>
+                            <td>imported</td>
+                            <td>{r.errorCount}</td>
+                            <td>{r.importedAt || EMPTY}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      )}
+
+      {operationMode === 'advanced' && (
+      <div className="card mb-3">
+        <div className="card-header py-2 fw-semibold">目前 Read Model 狀態</div>
+        <div className="card-body small">
+          <p className="text-muted mb-2">
+            用於確認 V2 API 目前讀源（legacy 或 learning journey v3），以及 fallback 保護是否啟用。此區塊僅觀測，不會改動 flag。
+          </p>
+          <button type="button" className="btn btn-outline-primary btn-sm" disabled={readModelStatusLoading} onClick={loadReadModelStatus}>
+            {readModelStatusLoading ? '載入中…' : '讀取 read model 狀態'}
+          </button>
+          {readModelStatusError && (
+            <div className="alert alert-danger py-2 mt-2 mb-0">
+              {readModelStatusError}
+              {readModelStatusRequestId ? <div className="small mt-1">Request-ID：{readModelStatusRequestId}</div> : null}
+            </div>
+          )}
+          {readModelStatusData && (
+            <div className="mt-3">
+              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span className="text-muted">Flag</span>
+                <span className={`badge ${readModelStatusData.enableLearningJourneyV3ReadModel ? 'bg-success' : 'bg-secondary'}`}>
+                  ENABLE_LEARNING_JOURNEY_V3_READ_MODEL={String(!!readModelStatusData.enableLearningJourneyV3ReadModel)}
+                </span>
+                <span className="text-muted">目前讀源</span>
+                <span className="badge bg-info text-dark">{readModelStatusData.currentReadModel || EMPTY}</span>
+                <span className="text-muted">fallback</span>
+                <span className={`badge ${readModelStatusData.fallbackEnabled ? 'bg-success' : 'bg-danger'}`}>
+                  {readModelStatusData.fallbackEnabled ? 'enabled' : 'disabled'}
+                </span>
+              </div>
+              {Array.isArray(readModelStatusData.warnings) && readModelStatusData.warnings.length > 0 ? (
+                <div className="alert alert-warning py-2 mb-2">
+                  {readModelStatusData.warnings.join('；')}
+                </div>
+              ) : null}
+              {Array.isArray(readModelStatusData.affectedApis) && readModelStatusData.affectedApis.length > 0 ? (
+                <div className="table-responsive">
+                  <table className="table table-sm table-bordered mb-0 align-middle">
+                    <thead className="table-light">
+                      <tr>
+                        <th>受影響 API</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {readModelStatusData.affectedApis.map((api) => (
+                        <tr key={api}>
+                          <td className="font-monospace">{api}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
+      )}
+
+      {operationMode === 'advanced' && (
+      <div className="card mb-3">
+        <div className="card-header py-2 fw-semibold">資料新鮮度（Data Freshness）</div>
+        <div className="card-body small">
+          <p className="text-muted mb-2">
+            檢查 canonical 表於指定學期的資料量與最近更新時間。若狀態為 <code>empty</code> 或 <code>stale</code>，建議先執行 sync/reconciliation。
+          </p>
+          <button type="button" className="btn btn-outline-primary btn-sm" disabled={freshnessLoading} onClick={loadDataFreshness}>
+            {freshnessLoading ? '檢查中…' : '執行資料新鮮度檢查'}
+          </button>
+          {freshnessError && (
+            <div className="alert alert-danger py-2 mt-2 mb-0">
+              {freshnessError}
+              {freshnessRequestId ? <div className="small mt-1">Request-ID：{freshnessRequestId}</div> : null}
+            </div>
+          )}
+          {freshnessData && Array.isArray(freshnessData.sections) && (
+            <div className="mt-3">
+              {(freshnessData.sections.some((s) => s.status === 'stale' || s.status === 'empty') || false) ? (
+                <div className="alert alert-warning py-2 mb-2">
+                  偵測到 stale/empty 區塊，建議先執行 sync 或 reconciliation，再判讀 v3 讀源結果。
+                </div>
+              ) : null}
+              <div className="table-responsive">
+                <table className="table table-sm table-bordered mb-0 align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th>section</th>
+                      <th>recordCount</th>
+                      <th>lastUpdatedAt</th>
+                      <th>status</th>
+                      <th>message</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {freshnessData.sections.map((s) => (
+                      <tr key={s.key}>
+                        <td className="font-monospace">{s.key}</td>
+                        <td>{s.recordCount}</td>
+                        <td>{s.lastUpdatedAt || EMPTY}</td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              s.status === 'fresh'
+                                ? 'bg-success'
+                                : s.status === 'stale'
+                                  ? 'bg-warning text-dark'
+                                  : s.status === 'empty'
+                                    ? 'bg-secondary'
+                                    : 'bg-danger'
+                            }`}
+                          >
+                            {s.status}
+                          </span>
+                        </td>
+                        <td>{s.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      )}
+
+      {operationMode === 'advanced' && (
       <div className="card mb-3">
         <div className="card-header py-2 fw-semibold">切換準備度（V2 read model → v3）</div>
         <div className="card-body small">
@@ -477,7 +1240,9 @@ export default function LearningJourneyHubPage() {
           )}
         </div>
       </div>
+      )}
 
+      {operationMode === 'advanced' && (
       <div className="card mb-3">
         <div className="card-header py-2 fw-semibold">資料對帳</div>
         <div className="card-body small">
@@ -574,7 +1339,9 @@ export default function LearningJourneyHubPage() {
           )}
         </div>
       </div>
+      )}
 
+      {operationMode === 'advanced' && (
       <div className="card mb-3">
         <div className="card-header py-2 fw-semibold">V2 指標比較（儀表摘要）</div>
         <div className="card-body small">
@@ -679,7 +1446,9 @@ export default function LearningJourneyHubPage() {
           )}
         </div>
       </div>
+      )}
 
+      {operationMode === 'advanced' && (
       <div className="card mb-3">
         <div className="card-header py-2 fw-semibold">學生列表對照（V2 vs LJS v3）</div>
         <div className="card-body small">
@@ -752,7 +1521,9 @@ export default function LearningJourneyHubPage() {
           )}
         </div>
       </div>
+      )}
 
+      {operationMode === 'advanced' && (
       <div className="card mb-3">
         <div className="card-header py-2 fw-semibold">學生詳情對照（V2 vs LJS v3）</div>
         <div className="card-body small">
@@ -889,7 +1660,9 @@ export default function LearningJourneyHubPage() {
           )}
         </div>
       </div>
+      )}
 
+      {operationMode === 'advanced' && (
       <div className="card mb-3">
         <div className="card-header py-2 fw-semibold">同步工具（LJS read model）</div>
         <div className="card-body small">
@@ -921,7 +1694,16 @@ export default function LearningJourneyHubPage() {
             <button type="button" className="btn btn-outline-secondary btn-sm" disabled={syncLoading} onClick={() => runLearningJourneySync(true)}>
               {syncLoading ? '執行中…' : '預覽（dry run）'}
             </button>
-            <button type="button" className="btn btn-warning btn-sm" disabled={syncLoading} onClick={applySyncThenReconcile}>
+            <button
+              type="button"
+              className="btn btn-warning btn-sm"
+              disabled={syncLoading}
+              onClick={() => {
+                const ok = window.confirm('此操作會同步資料，請確認是否已完成匯入。是否繼續？');
+                if (!ok) return;
+                applySyncThenReconcile();
+              }}
+            >
               {syncLoading ? '執行中…' : '正式同步並對帳'}
             </button>
           </div>
@@ -962,6 +1744,102 @@ export default function LearningJourneyHubPage() {
           )}
         </div>
       </div>
+      )}
+
+      {operationMode === 'advanced' && (
+      <div className="card mb-3">
+        <div className="card-header py-2 fw-semibold">修課紀錄匯入（courses / course_enrollments）</div>
+        <div className="card-body small">
+          <p className="text-muted mb-2">
+            上傳修課 Excel，欄位可使用：學期、課號、課名、學號、姓名、開課單位、授課教師、學分、修課狀態、成績、通過狀態、學習成果。請先 dry run，確認無錯誤與重複列後再 apply。
+          </p>
+          <div className="row g-2 align-items-end">
+            <div className="col-md-6">
+              <label className="form-label small mb-1">修課紀錄 Excel</label>
+              <input
+                className="form-control form-control-sm"
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => {
+                  const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                  setCourseImportFile(file);
+                  setCourseImportDryRun(null);
+                  setCourseImportApply(null);
+                  setCourseImportError('');
+                  setCourseImportRequestId('');
+                }}
+              />
+            </div>
+            <div className="col-md-6 d-flex flex-wrap gap-2">
+              <button type="button" className="btn btn-outline-secondary btn-sm" disabled={courseImportLoading || !courseImportFile} onClick={runCourseImportDryRun}>
+                {courseImportLoading ? '處理中…' : 'Dry run 預覽'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-warning btn-sm"
+                disabled={courseImportLoading || !courseImportFile || !courseImportDryRun}
+                onClick={runCourseImportApply}
+              >
+                {courseImportLoading ? '處理中…' : 'Apply 寫入'}
+              </button>
+              {courseImportFile ? <span className="text-muted align-self-center">{courseImportFile.name}</span> : null}
+            </div>
+          </div>
+          {courseImportError && (
+            <div className="alert alert-danger py-2 mt-2 mb-0">
+              {courseImportError}
+              {courseImportRequestId ? <div className="small mt-1">Request-ID：{courseImportRequestId}</div> : null}
+            </div>
+          )}
+          {courseImportDryRun && (
+            <div className="mt-3">
+              <div className="fw-semibold mb-1">Dry run 結果</div>
+              <div className="row g-2 mb-2">
+                {[
+                  ['有效列', courseImportDryRun.validRows],
+                  ['錯誤列', courseImportDryRun.invalidRows],
+                  ['重複列', courseImportDryRun.duplicateRows],
+                  ['新課程', courseImportDryRun.wouldCreateCourses],
+                  ['更新課程', courseImportDryRun.wouldUpdateCourses],
+                  ['新修課', courseImportDryRun.wouldCreateEnrollments],
+                  ['更新修課', courseImportDryRun.wouldUpdateEnrollments],
+                  ['未知學生', courseImportDryRun.unknownStudents],
+                ].map(([label, value]) => (
+                  <div key={label} className="col-6 col-md-3">
+                    <div className="border rounded p-2 h-100">
+                      <div className="text-muted">{label}</div>
+                      <div className="fw-semibold">{value ?? 0}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {Number(courseImportDryRun.invalidRows || 0) > 0 || Number(courseImportDryRun.duplicateRows || 0) > 0 ? (
+                <div className="alert alert-warning py-2">
+                  dry run 尚有錯誤或重複列，後端會拒絕 apply。請先修正檔案後重新預覽。
+                </div>
+              ) : (
+                <div className="alert alert-success py-2">dry run 未發現阻擋性錯誤，可由 super admin apply。</div>
+              )}
+              {Array.isArray(courseImportDryRun.samples?.invalidRows) && courseImportDryRun.samples.invalidRows.length > 0 ? (
+                <details className="mb-2">
+                  <summary className="text-muted" style={{ cursor: 'pointer' }}>錯誤列樣本</summary>
+                  <pre className="small bg-light p-2 rounded mt-1 mb-0 text-break" style={{ maxHeight: 180, overflow: 'auto' }}>
+                    {JSON.stringify(courseImportDryRun.samples.invalidRows, null, 2)}
+                  </pre>
+                </details>
+              ) : null}
+            </div>
+          )}
+          {courseImportApply && (
+            <div className="alert alert-success py-2 mt-3 mb-0">
+              已寫入：新增課程 {courseImportApply.createdCourses || 0}、更新課程 {courseImportApply.updatedCourses || 0}、新增修課{' '}
+              {courseImportApply.createdEnrollments || 0}、更新修課 {courseImportApply.updatedEnrollments || 0}、新增 outcomes{' '}
+              {courseImportApply.createdOutcomeMappings || 0}。
+            </div>
+          )}
+        </div>
+      </div>
+      )}
 
       {error && (
         <div className="alert alert-danger py-2">
@@ -1000,7 +1878,15 @@ export default function LearningJourneyHubPage() {
             {/* A. 學生基本資料 */}
             <div className="col-12">
               <div className="card">
-                <div className="card-header py-2 fw-semibold">A. 學生基本資料</div>
+                <div className="card-header py-2 d-flex justify-content-between align-items-center">
+                  <span className="fw-semibold">A. 學生基本資料</span>
+                  <Link
+                    className="btn btn-outline-primary btn-sm"
+                    to={`/admin/learning-journey/students/${encodeURIComponent(st.studentId || studentInput || '')}`}
+                  >
+                    開啟正式學習歷程頁
+                  </Link>
+                </div>
                 <div className="card-body small row g-2">
                   <div className="col-md-3">
                     <div className="text-muted">學號</div>
@@ -1093,10 +1979,34 @@ export default function LearningJourneyHubPage() {
               </div>
             </div>
 
-            {/* D. Timeline */}
+            {/* D. 修課紀錄 */}
+            <div className="col-md-6">
+              <div className="card h-100">
+                <div className="card-header py-2 fw-semibold">D. 修課紀錄</div>
+                <div className="card-body small">
+                  {!hasCourseData && !noStudent ? (
+                    <p className="text-muted mb-0">尚無修課紀錄。</p>
+                  ) : null}
+                  {hasCourseData ? <div className="mb-2">修課列共 {courses.length} 筆</div> : null}
+                  <ul className="ps-3 mb-0">
+                    {courses.slice(0, 8).map((row, idx) => {
+                      const course = row.course || {};
+                      return (
+                        <li key={row.id || row.enrollmentId || idx}>
+                          {row.semesterId || course.semesterId || EMPTY}：{course.courseCode || EMPTY} {course.courseName || EMPTY}
+                          {row.passStatus ? `（${row.passStatus}）` : ''}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* E. Timeline */}
             <div className="col-12">
               <div className="card">
-                <div className="card-header py-2 fw-semibold">D. Timeline（最多顯示 40 筆）</div>
+                <div className="card-header py-2 fw-semibold">E. Timeline（最多顯示 40 筆）</div>
                 <div className="card-body p-0 table-responsive">
                   {timeline.length === 0 ? (
                     <div className="p-3 text-muted small">尚無 timeline 事件。</div>
@@ -1115,8 +2025,21 @@ export default function LearningJourneyHubPage() {
                         {timeline.slice(0, 40).map((ev) => (
                           <tr key={ev.id || `${ev.type}-${ev.date}`}>
                             <td className="text-nowrap">{ev.date || EMPTY}</td>
-                            <td>{ev.type}</td>
-                            <td>{ev.title}</td>
+                            <td>
+                              {ev.type === 'course_record' ? (
+                                <span className="badge bg-info text-dark">修課紀錄</span>
+                              ) : (
+                                ev.type
+                              )}
+                            </td>
+                            <td>
+                              {ev.title}
+                              {ev.type === 'course_record' && ev.payload ? (
+                                <div className="text-muted">
+                                  {ev.payload.courseCode || EMPTY}；{ev.payload.departmentName || EMPTY}；學分 {ev.payload.credits || EMPTY}
+                                </div>
+                              ) : null}
+                            </td>
                             <td>{ev.status || EMPTY}</td>
                             <td>{ev.source}</td>
                           </tr>

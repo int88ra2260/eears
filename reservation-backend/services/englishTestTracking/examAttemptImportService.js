@@ -1,3 +1,7 @@
+/**
+ * @deprecated
+ * Will be removed after Learning Journey v3 fully replaces legacy tracking.
+ */
 const XLSX = require('xlsx');
 const path = require('path');
 const {

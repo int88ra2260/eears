@@ -52,9 +52,16 @@ export default function EnglishTestStudentDetailPage() {
     <div className="container-fluid py-3">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h4 className="mb-0">學生英檢詳細 V2</h4>
-        <Link className="btn btn-outline-secondary" to={`/admin/english-test-v2/students?semesterId=${encodeURIComponent(semesterId)}`}>
-          返回列表
-        </Link>
+        <div className="d-flex align-items-center gap-2">
+          {data?.source ? (
+            <span className={`badge ${String(data.source).includes('learning_journey_v3') ? 'bg-info text-dark' : 'bg-secondary'}`}>
+              source: {data.source}
+            </span>
+          ) : null}
+          <Link className="btn btn-outline-secondary" to={`/admin/english-test-v2/students?semesterId=${encodeURIComponent(semesterId)}`}>
+            返回列表
+          </Link>
+        </div>
       </div>
 
       {!semesterId && <div className="alert alert-warning">缺少 semesterId，請從學生列表進入。</div>}

@@ -58,9 +58,13 @@ const ExamRegistration = require('./ExamRegistration');
 const ExamAttempt = require('./ExamAttempt');
 const ExamAttemptSkillScore = require('./ExamAttemptSkillScore');
 const ActivityParticipation = require('./ActivityParticipation');
+const Course = require('./Course');
+const CourseEnrollment = require('./CourseEnrollment');
+const CourseOutcomeMapping = require('./CourseOutcomeMapping');
 const MigrationBatch = require('./MigrationBatch');
 const MigrationCheckpoint = require('./MigrationCheckpoint');
 const MigrationQuarantine = require('./MigrationQuarantine');
+const JobRun = require('./JobRun');
 
 Survey.hasMany(SurveyVersion, { foreignKey: 'surveyId', onDelete: 'CASCADE' });
 SurveyVersion.belongsTo(Survey, { foreignKey: 'surveyId' });
@@ -174,6 +178,12 @@ ExamAttempt.hasMany(ExamAttemptSkillScore, { foreignKey: 'attemptId', onDelete: 
 ExamAttemptSkillScore.belongsTo(ExamAttempt, { foreignKey: 'attemptId', as: 'attempt' });
 Student.hasMany(ActivityParticipation, { foreignKey: 'studentPk', as: 'activityParticipations' });
 ActivityParticipation.belongsTo(Student, { foreignKey: 'studentPk', as: 'student' });
+Student.hasMany(CourseEnrollment, { foreignKey: 'studentPk', as: 'courseEnrollments' });
+CourseEnrollment.belongsTo(Student, { foreignKey: 'studentPk', as: 'student' });
+Course.hasMany(CourseEnrollment, { foreignKey: 'courseId', as: 'enrollments', onDelete: 'CASCADE' });
+CourseEnrollment.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
+Course.hasMany(CourseOutcomeMapping, { foreignKey: 'courseId', as: 'outcomeMappings', onDelete: 'CASCADE' });
+CourseOutcomeMapping.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
 MigrationBatch.hasMany(MigrationCheckpoint, { foreignKey: 'batchId', as: 'checkpoints' });
 MigrationCheckpoint.belongsTo(MigrationBatch, { foreignKey: 'batchId', as: 'batch' });
 MigrationBatch.hasMany(MigrationQuarantine, { foreignKey: 'batchId', as: 'quarantinedRecords' });
@@ -244,7 +254,11 @@ module.exports = {
   ExamAttempt,
   ExamAttemptSkillScore,
   ActivityParticipation,
+  Course,
+  CourseEnrollment,
+  CourseOutcomeMapping,
   MigrationBatch,
   MigrationCheckpoint,
   MigrationQuarantine,
+  JobRun,
 };

@@ -1,5 +1,6 @@
 const dayjs = require('dayjs');
 const { Reservation, Event } = require('../models');
+const { RESERVATION_CUTOFF_HOURS } = require('../utils/reservationTime');
 
 async function cancelReservationPublic({
   reservationId,
@@ -22,8 +23,8 @@ async function cancelReservationPublic({
 
   const now = dayjs();
   const eventStart = dayjs(`${reservation.Event.date}T${reservation.Event.startTime}`);
-  const twoHoursBefore = eventStart.subtract(2, 'hour');
-  if (now.isAfter(twoHoursBefore)) {
+  const cancellationDeadline = eventStart.subtract(RESERVATION_CUTOFF_HOURS, 'hour');
+  if (now.isAfter(cancellationDeadline)) {
     return { cancelled: false, reservation, reason: 'time_window_closed' };
   }
 

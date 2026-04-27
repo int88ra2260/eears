@@ -4,12 +4,27 @@ const router = express.Router();
 const ExcelJS = require('exceljs');
 const { EnglishTableSurveyResponse, EnglishClubSurveyResponse, SurveySettings } = require('../models');
 const { authMiddleware, requirePermission, requireSurveyAccess, P } = require('../middlewares/auth');
+const { legacyDeprecationHeaders } = require('../middlewares/legacyDeprecation');
 const surveyModuleService = require('../services/surveyModuleService');
 const { getCurrentSemester, isValidSemester } = require('../utils/semester');
 
 function resolveLegacyStatsSemester(req) {
   return req.query.semester && isValidSemester(req.query.semester) ? req.query.semester : getCurrentSemester();
 }
+
+const markDeprecatedSurveyRoute = legacyDeprecationHeaders({
+  sunset: '2026-06-30',
+  replacementApi: '/api/surveys/public/:surveyKey',
+  scope: 'legacy_survey_compat'
+});
+
+const markGoneSurveyConfigRoute = legacyDeprecationHeaders({
+  sunset: '2026-04-27',
+  replacementApi: '/api/surveys/public/:surveyKey',
+  scope: 'legacy_survey_config',
+  gone: true,
+  goneMessage: 'Legacy surveys.json config API 已封存，請改用 Survey Center / public survey package API。'
+});
 
 // 載入問卷配置（後台 /config、舊相容）
 const surveysConfig = require('../surveys.json');
@@ -116,8 +131,8 @@ router.get('/enabled', async (req, res, next) => {
   }
 });
 
-// 取得問卷配置 API
-router.get('/config', async (req, res, next) => {
+// 取得問卷配置 API（legacy 相容；新流程改由 Survey Center / published package 管理）
+router.get('/config', markGoneSurveyConfigRoute, async (req, res, next) => {
   try {
     res.json(surveysConfig);
   } catch (err) {
@@ -125,8 +140,8 @@ router.get('/config', async (req, res, next) => {
   }
 });
 
-// 通用問卷提交 API（保留相容路徑；與 /public/:surveyKey/responses 共用業務邏輯）
-router.post('/:surveyId', async (req, res, next) => {
+// 通用問卷提交 API（legacy 相容；與 /public/:surveyKey/responses 共用業務邏輯）
+router.post('/:surveyId', markDeprecatedSurveyRoute, async (req, res, next) => {
   try {
     const { surveyId } = req.params;
     if (surveyId === 'enabled' || surveyId === 'config' || surveyId.startsWith('public')) {
@@ -139,8 +154,8 @@ router.post('/:surveyId', async (req, res, next) => {
   }
 });
 
-// 檢查問卷填寫狀態
-router.get('/check/:surveyId/:studentId', async (req, res, next) => {
+// 檢查問卷填寫狀態（legacy 相容；正式後台查詢以 Survey Center 為主）
+router.get('/check/:surveyId/:studentId', markDeprecatedSurveyRoute, async (req, res, next) => {
   try {
     const { surveyId, studentId } = req.params;
 
@@ -180,6 +195,7 @@ router.get('/check/:surveyId/:studentId', async (req, res, next) => {
 // 取得問卷統計（管理員、執行長和English Table負責人可用）
 router.get(
   '/stats/:surveyId',
+  markDeprecatedSurveyRoute,
   authMiddleware,
   requirePermission(P.CAN_VIEW_SURVEYS),
   requireSurveyAccess('surveyId'),
@@ -242,6 +258,7 @@ router.get(
 // 匯出問卷資料至Excel（管理員、執行長和English Table負責人可用）
 router.get(
   '/export/:surveyId',
+  markDeprecatedSurveyRoute,
   authMiddleware,
   requirePermission(P.CAN_EXPORT_SURVEYS),
   requireSurveyAccess('surveyId'),

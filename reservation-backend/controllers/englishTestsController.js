@@ -8,6 +8,24 @@ const { getEnglishTestSummaryV3 } = require('../services/learningJourney/english
 const { getEnglishTestStudentsV3 } = require('../services/learningJourney/englishTestStudentsV3Service');
 const { getEnglishTestStudentDetailV3 } = require('../services/learningJourney/englishTestStudentDetailV3Service');
 
+const READ_MODEL_USAGE = {
+  total: 0,
+  v3: 0,
+  legacy: 0,
+  fallback: 0
+};
+
+function logReadModelUsage(endpoint, source, startedAt) {
+  READ_MODEL_USAGE.total += 1;
+  if (String(source).includes('learning_journey_v3')) READ_MODEL_USAGE.v3 += 1;
+  else if (String(source).includes('fallback')) READ_MODEL_USAGE.fallback += 1;
+  else READ_MODEL_USAGE.legacy += 1;
+  const latencyMs = Math.max(0, Date.now() - startedAt);
+  console.info(
+    `[read-model-usage] endpoint=${endpoint} source=${source} latencyMs=${latencyMs} total=${READ_MODEL_USAGE.total} v3=${READ_MODEL_USAGE.v3} legacy=${READ_MODEL_USAGE.legacy} fallback=${READ_MODEL_USAGE.fallback}`
+  );
+}
+
 function isValidSemesterId(input) {
   if (!input) return false;
   return /^[0-9]{2,4}-[0-9]{1,2}$/.test(String(input).trim());
@@ -70,6 +88,8 @@ const DRIFT_MSG =
   'Learning Journey v3 summary differs substantially from legacy; verify data sync and reconciliation before relying on KPI.';
 
 async function getSemesterSummary(req, res) {
+  // TODO: migrate to /api/v3/learning-journey (compatibility layer only)
+  const startedAt = Date.now();
   try {
     const semesterId = req.params.id ? String(req.params.id).trim() : '';
     if (!isValidSemesterId(semesterId)) {
@@ -84,6 +104,7 @@ async function getSemesterSummary(req, res) {
 
     if (!isLearningJourneyV3ReadModelEnabled()) {
       const summary = await loadLegacySummary();
+      logReadModelUsage('summary', 'legacy_et_v2', startedAt);
       return sendSemesterSummaryPayload(res, { ...summary, warnings: [] }, 'legacy_et_v2', 'legacy_et_v2');
     }
 
@@ -98,6 +119,7 @@ async function getSemesterSummary(req, res) {
 
     if (!v3Ok) {
       const summary = await loadLegacySummary();
+      logReadModelUsage('summary', 'legacy_et_v2_fallback', startedAt);
       return sendSemesterSummaryPayload(
         res,
         {
@@ -134,6 +156,7 @@ async function getSemesterSummary(req, res) {
     }
 
     const { error: _e, dataQuality: _dq, source: _src, ...kpiFromV3 } = v3;
+    logReadModelUsage('summary', 'learning_journey_v3', startedAt);
     return sendSemesterSummaryPayload(res, { ...kpiFromV3, warnings }, 'learning_journey_v3', 'learning_journey_v3');
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -163,6 +186,8 @@ function sendStudentDetailPayload(res, body, readModelKey, source) {
 }
 
 async function getSemesterStudents(req, res) {
+  // TODO: migrate to /api/v3/learning-journey (compatibility layer only)
+  const startedAt = Date.now();
   try {
     const semesterId = req.params.id ? String(req.params.id).trim() : '';
     if (!isValidSemesterId(semesterId)) {
@@ -180,6 +205,7 @@ async function getSemesterStudents(req, res) {
 
     if (!isLearningJourneyV3ReadModelEnabled()) {
       const result = await englishTestReportService.getSemesterStudents(semesterId, opts);
+      logReadModelUsage('students', 'legacy_et_v2', startedAt);
       return sendSemesterStudentsPayload(res, { ...result, warnings: [] }, 'legacy_et_v2', 'legacy_et_v2');
     }
 
@@ -194,6 +220,7 @@ async function getSemesterStudents(req, res) {
 
     if (!v3Ok) {
       const result = await englishTestReportService.getSemesterStudents(semesterId, opts);
+      logReadModelUsage('students', 'legacy_et_v2_fallback', startedAt);
       return sendSemesterStudentsPayload(
         res,
         {
@@ -212,6 +239,7 @@ async function getSemesterStudents(req, res) {
       }
     }
     const { error: _e, dataQuality: _dq, source: _src, ...rest } = v3;
+    logReadModelUsage('students', 'learning_journey_v3', startedAt);
     return sendSemesterStudentsPayload(res, { ...rest, warnings }, 'learning_journey_v3', 'learning_journey_v3');
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -279,6 +307,8 @@ async function getSemesterImportHistories(req, res) {
 }
 
 async function getStudentDetail(req, res) {
+  // TODO: migrate to /api/v3/learning-journey (compatibility layer only)
+  const startedAt = Date.now();
   try {
     const semesterId = req.params.id ? String(req.params.id).trim() : '';
     const studentId = req.params.studentId ? String(req.params.studentId).trim() : '';
@@ -299,6 +329,7 @@ async function getStudentDetail(req, res) {
       if (isEmptyDetail(detail)) {
         return res.status(404).json({ error: '查無資料' });
       }
+      logReadModelUsage('student_detail', 'legacy_et_v2', startedAt);
       return sendStudentDetailPayload(res, { ...detail, warnings: [] }, 'legacy_et_v2', 'legacy_et_v2');
     }
 
@@ -317,6 +348,7 @@ async function getStudentDetail(req, res) {
         if (isEmptyDetail(detail)) {
           return res.status(404).json({ error: '查無資料' });
         }
+        logReadModelUsage('student_detail', 'legacy_et_v2_fallback', startedAt);
         return sendStudentDetailPayload(res, {
           ...detail,
           warnings: ['Learning Journey v3 student detail failed; fallback to legacy']
@@ -334,6 +366,7 @@ async function getStudentDetail(req, res) {
       }
     }
     const { error: _e, dataQuality: _dq, source: _src, ...rest } = v3;
+    logReadModelUsage('student_detail', 'learning_journey_v3', startedAt);
     return sendStudentDetailPayload(res, { ...rest, warnings }, 'learning_journey_v3', 'learning_journey_v3');
   } catch (error) {
     const status = error && error.status ? error.status : 500;

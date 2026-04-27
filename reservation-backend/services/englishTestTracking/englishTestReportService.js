@@ -1,5 +1,13 @@
 'use strict';
 
+/**
+ * @deprecated
+ * Will be removed after Learning Journey v3 fully replaces legacy tracking.
+ */
+if (process.env.NODE_ENV !== 'production') {
+  console.warn('Legacy English Test Tracking is deprecated. Use Learning Journey v3.');
+}
+
 const { Op } = require('sequelize');
 const {
   EtEnrollmentSnapshot,

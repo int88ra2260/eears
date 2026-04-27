@@ -6,6 +6,8 @@ import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+export const RESERVATION_CUTOFF_HOURS = 2;
+
 /**
  * 根據活動類型計算預約開始時間
  * @param {Object} event - 活動物件，包含 date, startTime, eventType
@@ -21,33 +23,33 @@ export function calculateReservationTime(event) {
     case 'English Table':
       // English Table保持原樣：前一天 00:00 開始
       openStart = eventStart.subtract(1, 'day').startOf('day');
-      openEnd = eventStart.subtract(2, 'hour');
+      openEnd = eventStart.subtract(RESERVATION_CUTOFF_HOURS, 'hour');
       break;
       
     case 'Job Talk':
       // Job Talk：活動開始前一個禮拜的同一個weekday的中午12點
       openStart = eventStart.subtract(7, 'day').hour(12).minute(0).second(0);
-      openEnd = eventStart.subtract(2, 'hour');
+      openEnd = eventStart.subtract(RESERVATION_CUTOFF_HOURS, 'hour');
       break;
       
     case 'English Club':
       // English Club：上禮拜三的中午12點
       // 直接計算：找到活動當週的星期三，然後減去7天
       openStart = eventStart.startOf('week').add(3, 'day').subtract(7, 'day').hour(12).minute(0).second(0);
-      openEnd = eventStart.subtract(2, 'hour');
+      openEnd = eventStart.subtract(RESERVATION_CUTOFF_HOURS, 'hour');
       break;
       
     case 'International Forum':
       // International Forum：上禮拜五的中午12點  
       // 直接計算：找到活動當週的星期五，然後減去7天
       openStart = eventStart.startOf('week').add(5, 'day').subtract(7, 'day').hour(12).minute(0).second(0);
-      openEnd = eventStart.subtract(2, 'hour');
+      openEnd = eventStart.subtract(RESERVATION_CUTOFF_HOURS, 'hour');
       break;
       
     default:
       // 預設使用 English Table 的邏輯（包含自定義活動類型）
       openStart = eventStart.subtract(1, 'day').startOf('day');
-      openEnd = eventStart.subtract(2, 'hour');
+      openEnd = eventStart.subtract(RESERVATION_CUTOFF_HOURS, 'hour');
       break;
   }
   

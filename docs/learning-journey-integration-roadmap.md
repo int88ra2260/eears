@@ -243,6 +243,53 @@
 - 人工 spot check：要求抽樣學生與頁面巡檢，避免僅依單一 API 結果決策。
 - 明確禁止：**不可直接正式切換**（未完成 UAT 與簽核前，不可視為正式上線切換）。
 
+### H.11 Phase 5-15：V2 Read Model 小範圍試切換與觀測紀錄
+
+本階段不做大型功能改造，重點是讓試切換「可觀測、可回報、可追蹤」：
+
+- 新增觀測紀錄文件：`docs/learning-journey-v3-read-model-switch-log.md`
+  - 記錄測試日期、學期、測試人員、flag 狀態、readiness 結果、切換前/後數據、差異、是否 rollback、結論。
+- 新增 read model 狀態 API：`GET /api/v3/learning-journey/admin/read-model-status`
+  - 回傳 flag、`currentReadModel`、受影響 API、fallback 狀態與 warnings。
+- Learning Journey Hub 新增「目前 Read Model 狀態」區塊：
+  - 顯示 flag 是否開啟、目前 V2 讀源、fallback、受影響 API。
+- V2 dashboard 來源可見性：
+  - 保持 summary badge；
+  - students list / student detail 若 response 帶 `source`，顯示簡單來源提示。
+- 安全限制維持：
+  - 不自動改 `.env`
+  - 不自動開啟 flag
+  - 不 migration
+  - 不刪 legacy
+  - 不改匯入流程
+  - 不移除 fallback
+
+## I. Phase 6：正式產品化與收斂（進行中）
+
+- **Phase 6-1**：V2 compatibility API 預設讀 v3（僅明確 `false` 時 rollback 到 legacy）。
+- **Phase 6-2**：legacy tracking 路由/服務標記 `@deprecated`，dev mode 顯示警告。
+- **Phase 6-3**：維持 `/api/admin/english-tests/*` 為 compatibility layer，並在 controller 標註遷移 TODO；新增 `docs/api-migration-plan.md`。
+- **Phase 6-4**：`/admin/learning-journey` 升級為正式 Dashboard 視圖（KPI、分布、風險區塊）。
+- **Phase 6-5**：新增 `GET /api/v3/learning-journey/semesters/:semesterId/risk-students`。
+- **Phase 6-6**：新增 `docs/data-source-of-truth.md`，明確 `exam_attempts` 為 canonical、`et_*` 為 legacy/deprecated。
+- **Phase 6-7**：新增 learning-journey latency log、v3/legacy 使用比例與 fallback 次數觀測 log。
+- **Phase 6-8**：上線前硬化與防呆：
+  - 啟動時檢查 canonical tables 缺失（不 crash production）
+  - 新增 `data-freshness` API 與 Hub 可視化
+  - V2 dashboard 在 v3 + stale/fallback/dataQuality warning 時顯示防誤判提示
+  - 文件補齊預設 v3 後檢查與判讀規則
+- **Phase 6-9**：營運化（Operationalization）：
+  - Hub 新增 Operation Mode（隱藏技術細節）與 Advanced Mode（工程/管理）
+  - RBAC：`sync` 限 super_admin；`reconciliation/compare/read-model-status/data-freshness/readiness` 限 admin+
+  - 防誤操作：sync 前確認提示；stale 時 KPI 區塊紅色警示
+  - 新增行政操作手冊：`docs/learning-journey-operation-manual.md`
+  - 新增輕量 audit log：記錄 sync 操作者、學期、dryRun 與 sections（console）
+- **Phase 6-10**：正式上線準備與交接包：
+  - Go-live checklist：`docs/learning-journey-go-live-checklist.md`
+  - Admin handoff：`docs/learning-journey-admin-handoff.md`
+  - Technical handoff：`docs/learning-journey-technical-handoff.md`
+  - Post-launch monitoring：上線後 1 週 fallback/latency/data freshness/KPI 觀測清單
+
 ---
 
 ## F. 修訂紀錄
@@ -257,3 +304,8 @@
 | 2026-04-24 | Phase 5-12：v3／compare 學生詳情、admin detail flag 預留、Hub 詳情對照（§H.8） |
 | 2026-04-24 | Phase 5-13：readiness gate API、Hub「切換準備度」、門檻與 rollback 說明（§H.9） |
 | 2026-04-24 | Phase 5-14：UAT 操作手冊、readiness CLI、spot check 與不可直接正式切換規範（§H.10） |
+| 2026-04-24 | Phase 5-15：read-model-status API、Hub 狀態顯示、V2 students/detail 來源提示、觀測紀錄模板（§H.11） |
+| 2026-04-24 | Phase 6（6-1~6-7）第一版：預設讀 v3、deprecated 標記、risk API、dashboard 升級、觀測 log、資料來源文件（§I） |
+| 2026-04-27 | Phase 6-8：啟動 canonical table 檢查、data-freshness API/Hub、V2 防誤判提示、文件更新（§I） |
+| 2026-04-27 | Phase 6-9：Operation/Advanced 模式、RBAC 限制、防誤操作提示、行政操作手冊、sync audit log（§I） |
+| 2026-04-27 | Phase 6-10：go-live checklist、admin handoff、technical handoff、post-launch monitoring（§I） |

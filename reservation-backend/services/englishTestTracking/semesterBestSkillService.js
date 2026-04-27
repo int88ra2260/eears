@@ -1,5 +1,10 @@
 'use strict';
 
+/**
+ * @deprecated
+ * Will be removed after Learning Journey v3 fully replaces legacy tracking.
+ */
+
 const { Op } = require('sequelize');
 const {
   sequelize,

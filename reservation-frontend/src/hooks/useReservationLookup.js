@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import dayjs from 'dayjs';
 import { validateReservationData } from '../utils/validators';
+import { RESERVATION_CUTOFF_HOURS } from '../utils/reservationTime';
 import { searchReservations, cancelReservation } from '../services/reservationService';
 import useConfirm from '../components/ui/useConfirm';
 import { formatBookingCode } from '../utils/bookingCode';
@@ -21,8 +22,8 @@ import {
 export function canCancelReservation(record) {
   const now = dayjs();
   const eventStart = dayjs(`${record.date}T${record.startTime}`);
-  const twoHoursBefore = eventStart.subtract(2, 'hour');
-  return now.isBefore(twoHoursBefore);
+  const cancellationDeadline = eventStart.subtract(RESERVATION_CUTOFF_HOURS, 'hour');
+  return now.isBefore(cancellationDeadline);
 }
 
 export default function useReservationLookup({ showToast } = {}) {

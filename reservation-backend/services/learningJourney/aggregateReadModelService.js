@@ -15,7 +15,9 @@ const {
   ExamAttempt,
   ExamAttemptSkillScore,
   StudentSemesterProfile,
-  ActivityParticipation
+  ActivityParticipation,
+  Course,
+  CourseEnrollment
 } = require('../../models');
 const { normalizeStudentId } = require('./utils/studentNormalization');
 
@@ -27,6 +29,7 @@ function emptyReadModel() {
     examAttempts: [],
     bestSkills: {},
     activities: [],
+    courses: [],
     timeline: [],
     dataQuality: []
   };
@@ -105,7 +108,8 @@ function buildUnifiedTimeline(studentId, ctx) {
     bestSkillRows = [],
     reservations = [],
     activityParticipations = [],
-    ljsExamAttempts = []
+    ljsExamAttempts = [],
+    courseEnrollments = []
   } = ctx;
 
   const events = [];
@@ -250,6 +254,31 @@ function buildUnifiedTimeline(studentId, ctx) {
       source: 'exam_attempts',
       status: String(j.status || ''),
       payload: { attemptId: j.id, sourceType: j.sourceType, skillScores: j.skillScores || [] }
+    });
+  }
+
+  for (const enrollment of courseEnrollments) {
+    const j = toPlain(enrollment);
+    const course = enrollment.course ? toPlain(enrollment.course) : {};
+    events.push({
+      id: `course_record-${j.id}`,
+      type: 'course_record',
+      title: `修課紀錄：${course.courseName || course.courseCode || '—'}`,
+      date: isoOrNull(j.updatedAt || j.createdAt),
+      semesterId: j.semesterId || (course.semesterId || null),
+      source: 'course_enrollments',
+      status: String(j.passStatus || j.enrollmentStatus || ''),
+      payload: {
+        enrollmentId: j.id,
+        courseId: j.courseId,
+        courseCode: course.courseCode,
+        courseName: course.courseName,
+        departmentName: course.departmentName,
+        credits: course.credits,
+        enrollmentStatus: j.enrollmentStatus,
+        passStatus: j.passStatus,
+        finalScore: j.finalScore
+      }
     });
   }
 
@@ -435,6 +464,7 @@ async function getAggregatedStudentReadModel(rawStudentId) {
 
     let ljsAttempts = [];
     let ljsProfiles = [];
+    let courseEnrollments = [];
     if (ljsStudent) {
       ljsAttempts = await safeQuery(
         'exam_attempts_ljs',
@@ -462,6 +492,22 @@ async function getAggregatedStudentReadModel(rawStudentId) {
       out.student.ljsSemesterProfiles = ljsProfiles;
     }
 
+    courseEnrollments = await safeQuery(
+      'course_enrollments',
+      out.dataQuality,
+      () =>
+        CourseEnrollment.findAll({
+          where: { studentId },
+          include: [{ model: Course, as: 'course', required: false }],
+          order: [['semesterId', 'DESC'], ['id', 'ASC']],
+          limit: 300
+        }).then((rows) => rows.map(toPlain)),
+      []
+    );
+    out.courses = courseEnrollments;
+    out.student.aggregateFlags.hasCourseEnrollments = courseEnrollments.length > 0;
+    out.student.aggregateFlags.courseEnrollmentCount = courseEnrollments.length;
+
     out.timeline = buildUnifiedTimeline(studentId, {
       enrollments,
       registrations: regs,
@@ -471,15 +517,9 @@ async function getAggregatedStudentReadModel(rawStudentId) {
       bestSkillRows,
       reservations,
       activityParticipations,
-      ljsExamAttempts: ljsAttempts
+      ljsExamAttempts: ljsAttempts,
+      courseEnrollments
     });
-
-    pushQuality(
-      out.dataQuality,
-      'COURSE_RECORDS_NOT_IN_TIMELINE',
-      '修課紀錄（course_record）尚未接入 timeline，僅保留類型預留。',
-      'info'
-    );
 
     const hasAny =
       !!etMaster ||
@@ -491,7 +531,8 @@ async function getAggregatedStudentReadModel(rawStudentId) {
       reservations.length > 0 ||
       activityParticipations.length > 0 ||
       !!ljsStudent ||
-      bestSkillRows.length > 0;
+      bestSkillRows.length > 0 ||
+      courseEnrollments.length > 0;
 
     if (!hasAny) {
       pushQuality(out.dataQuality, 'NO_STUDENT_AGGREGATE', '查無任何與此學號相關之可聚合資料', 'warning');
@@ -523,6 +564,9 @@ async function getAggregatedStudentReadModel(rawStudentId) {
     }
     if (!etAttempts.length) {
       pushQuality(out.dataQuality, 'NO_ET_ATTEMPTS', 'et_exam_attempts 無長期追蹤成績', 'info');
+    }
+    if (!courseEnrollments.length) {
+      pushQuality(out.dataQuality, 'NO_COURSE_RECORDS', 'course_enrollments 無修課紀錄', 'info');
     }
 
     return out;

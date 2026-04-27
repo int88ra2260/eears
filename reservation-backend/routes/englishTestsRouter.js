@@ -2,11 +2,18 @@
 
 const express = require('express');
 const { authMiddleware, adminOrExecutiveMiddleware } = require('../middlewares/auth');
+const { legacyDeprecationHeaders } = require('../middlewares/legacyDeprecation');
 const controller = require('../controllers/englishTestsController');
 
 const router = express.Router();
 
 router.use(authMiddleware, adminOrExecutiveMiddleware);
+router.use(legacyDeprecationHeaders({
+  sunset: 'TBD',
+  replacementApi: '/api/v3/learning-journey',
+  scope: 'legacy_english_tests_admin',
+  blockCanonicalSemesterWrites: true
+}));
 
 router.get('/semesters', controller.listSemesters);
 router.post('/semesters', controller.createSemester);

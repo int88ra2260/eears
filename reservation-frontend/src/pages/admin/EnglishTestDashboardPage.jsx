@@ -30,6 +30,15 @@ function pickDefaultSemesterId(list) {
   return String((active || list[0]).id || '');
 }
 
+function shouldShowV3SyncWarning(summary) {
+  if (!summary || summary.source !== 'learning_journey_v3') return false;
+  const warnings = Array.isArray(summary.warnings) ? summary.warnings : [];
+  return warnings.some((w) => {
+    const s = String(w || '').toLowerCase();
+    return s.includes('dataquality') || s.includes('stale') || s.includes('fallback') || s.includes('sync') || s.includes('reconciliation');
+  });
+}
+
 export default function EnglishTestDashboardPage() {
   const [semesters, setSemesters] = useState([]);
   const [semesterId, setSemesterId] = useState('');
@@ -563,6 +572,11 @@ export default function EnglishTestDashboardPage() {
               {summary.source === 'learning_journey_v3' ? '資料來源：Learning Journey v3' : '資料來源：英檢 V2'}
             </span>
           </div>
+          {shouldShowV3SyncWarning(summary) ? (
+            <div className="alert alert-warning py-2 small mb-2">
+              目前資料來源為 Learning Journey v3，請確認資料同步狀態。
+            </div>
+          ) : null}
           {Array.isArray(summary.warnings) && summary.warnings.length > 0 ? (
             <div className="alert alert-warning py-2 small mb-2">{summary.warnings.join(' ')}</div>
           ) : null}

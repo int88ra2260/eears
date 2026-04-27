@@ -36,6 +36,7 @@ export default function EnglishTestStudentListPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dataSource, setDataSource] = useState('');
   const [filters, setFilters] = useState({
     keyword: '',
     grade: '',
@@ -81,6 +82,7 @@ export default function EnglishTestStudentListPage() {
       };
       const data = await getSemesterStudents(token, semesterId, safeFilters);
       setRows(Array.isArray(data?.items) ? data.items : []);
+      setDataSource(String(data?.source || ''));
       setPagination({
         limit: Number(data?.pagination?.limit ?? safeFilters.limit),
         offset: Number(data?.pagination?.offset ?? safeFilters.offset),
@@ -93,6 +95,7 @@ export default function EnglishTestStudentListPage() {
       });
     } catch (e) {
       setRows([]);
+      setDataSource('');
       setPagination((prev) => ({ ...prev, returned: 0 }));
       setError(e.message || '載入學生列表失敗');
     } finally {
@@ -129,6 +132,11 @@ export default function EnglishTestStudentListPage() {
     <div className="container-fluid py-3">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h4 className="mb-0">英檢學生列表 V2</h4>
+        {dataSource ? (
+          <span className={`badge ${dataSource.includes('learning_journey_v3') ? 'bg-info text-dark' : 'bg-secondary'}`}>
+            source: {dataSource}
+          </span>
+        ) : null}
       </div>
 
       <div className="card mb-3">

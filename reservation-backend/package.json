@@ -9,6 +9,8 @@
     "ljs:migration:dry": "node scripts/run-learning-journey-migration.js --dry-run --batch-key=ljs-dryrun",
     "ljs:seed:nonstandard": "node scripts/seed-nonstandard-bestep.js",
     "ljs:verify:sample": "node scripts/ljs-verify-sample.js",
+    "lj:daily-governance": "node scripts/learning-journey-daily-governance.js",
+    "lj:reconcile-semester": "node scripts/learning-journey-reconcile-semester.js",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
