@@ -20,6 +20,46 @@ export default function AdminEventDetailTabs(props) {
   const setTabKey = onSelect || setInternalKey;
 
   const [checkinSearchTerm, setCheckinSearchTerm] = useState('');
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelVerificationCode, setCancelVerificationCode] = useState('');
+  const [cancelCodeError, setCancelCodeError] = useState('');
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+
+  const openCancelReservationModal = (reservation) => {
+    setCancelTarget(reservation);
+    setCancelVerificationCode('');
+    setCancelCodeError('');
+  };
+
+  const closeCancelReservationModal = () => {
+    if (cancelSubmitting) return;
+    setCancelTarget(null);
+    setCancelVerificationCode('');
+    setCancelCodeError('');
+  };
+
+  const submitCancelReservation = async () => {
+    if (!cancelTarget) return;
+    const code = cancelVerificationCode.trim();
+    if (!code) {
+      setCancelCodeError('請輸入該筆預約的取消驗證碼。');
+      return;
+    }
+
+    setCancelSubmitting(true);
+    setCancelCodeError('');
+    const ok = await ws.handleDeleteReservation(
+      cancelTarget.id,
+      cancelTarget.studentId,
+      cancelTarget.studentName || cancelTarget.name,
+      code
+    );
+    setCancelSubmitting(false);
+    if (ok) {
+      setCancelTarget(null);
+      setCancelVerificationCode('');
+    }
+  };
 
   const resBlocking = ws.reservationsLoading && !ws.reservationsLoaded;
   const vioBlocking =
@@ -178,17 +218,11 @@ export default function AdminEventDetailTabs(props) {
                           違規…
                         </Button>
                       )}
-                      {ws.canManageEvents && ws.canCancelReservation() && (
+                      {ws.canManageEvents && (
                         <Button
                           variant="outline-danger"
                           size="sm"
-                          onClick={() =>
-                            ws.handleDeleteReservation(
-                              reservation.id,
-                              reservation.studentId,
-                              reservation.studentName || reservation.name
-                            )
-                          }
+                          onClick={() => openCancelReservationModal(reservation)}
                           title="刪除預約（管理員）"
                         >
                           取消預約
@@ -469,6 +503,56 @@ export default function AdminEventDetailTabs(props) {
           </div>
         </Tab>
       </Tabs>
+
+      <Modal show={!!cancelTarget} onHide={closeCancelReservationModal} centered backdrop="static">
+        <Modal.Header closeButton={!cancelSubmitting}>
+          <Modal.Title>確認取消預約</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="warning" className="small mb-3">
+            此操作不受活動開始前 2 小時限制，但必須輸入該筆預約確認信中的取消驗證碼。送出後會刪除此預約紀錄，且無法復原。
+          </Alert>
+          <div className="mb-3">
+            <div className="small text-muted">學生</div>
+            <div className="fw-semibold">
+              {cancelTarget?.studentId} {cancelTarget?.studentName || cancelTarget?.name}
+            </div>
+          </div>
+          <Form.Group>
+            <Form.Label>取消驗證碼</Form.Label>
+            <Form.Control
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={cancelVerificationCode}
+              onChange={(e) => {
+                setCancelVerificationCode(e.target.value);
+                if (cancelCodeError) setCancelCodeError('');
+              }}
+              placeholder="請輸入 6 位數驗證碼"
+              maxLength={6}
+              disabled={cancelSubmitting}
+              autoFocus
+            />
+            <Form.Text className="text-muted">
+              驗證碼來源為學生預約成功通知信；系統會與該筆預約儲存的驗證碼比對。
+            </Form.Text>
+          </Form.Group>
+          {cancelCodeError ? (
+            <Alert variant="danger" className="py-2 mt-3 mb-0">
+              {cancelCodeError}
+            </Alert>
+          ) : null}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeCancelReservationModal} disabled={cancelSubmitting}>
+            取消
+          </Button>
+          <Button variant="danger" onClick={submitCancelReservation} disabled={cancelSubmitting}>
+            {cancelSubmitting ? '處理中…' : '確認取消預約'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       <Modal show={ws.showViolationModal} onHide={() => ws.setShowViolationModal(false)}>
         <Modal.Header closeButton>

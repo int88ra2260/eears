@@ -2,24 +2,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getLearningJourneyProfile,
-  getLearningJourneySemesterDashboard,
+  getLearningJourneySemesters,
+  getLearningJourneySemesterOverview,
+  getLearningJourneySemesterStudents,
+  getLearningJourneyImportHistories,
+  postLearningJourneyRebuildFinal,
   getLearningJourneyReadiness,
   getLearningJourneyReadModelStatus,
-  getLearningJourneyEnglishTestSummaryCompare,
-  getLearningJourneyEnglishTestStudentsCompare,
   getLearningJourneyRiskStudents,
   getLearningJourneyDataFreshness,
 } from '../../services/learningJourneyApi';
-import {
-  getSemesters,
-  getSemesterSummary,
-  getSemesterDepartmentStats,
-  getSemesterCefrDistribution,
-  getSemesterDataQuality,
-  getSemesterImportHistories,
-  getSemesterStudents,
-  rebuildSemesterBestSkills,
-} from '../../services/englishTestService';
 
 const EMPTY = '—';
 const HISTORY_KEY = 'english-test-v2-history';
@@ -31,7 +23,6 @@ const SKILL_LABELS = {
   writing: '寫作',
 };
 const SKILL_KEYS = Object.keys(SKILL_LABELS);
-const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'NO_DATA'];
 
 function parseJwtPayload(token) {
   try {
@@ -92,21 +83,6 @@ function getAttemptSkillText(skillScore) {
   const raw = skillScore.rawScore ?? skillScore.score ?? EMPTY;
   const cefr = skillScore.cefr || skillScore.cefrLevel || EMPTY;
   return `${raw} / ${cefr}`;
-}
-
-function cefrLevelLabel(level) {
-  return level === 'NO_DATA' ? '無' : level;
-}
-
-function cefrLevelColor(level) {
-  if (level === 'NO_DATA') return '#ced4da';
-  if (level === 'A1') return '#9aa5b1';
-  if (level === 'A2') return '#7b8a99';
-  if (level === 'B1') return '#6c7cff';
-  if (level === 'B2') return '#4fa3e8';
-  if (level === 'C1') return '#38c8a8';
-  if (level === 'C2') return '#f0b429';
-  return '#7c6ff0';
 }
 
 function getReadableError(error, fallback) {
@@ -195,7 +171,7 @@ function ProfileSummary({ profile, studentInput, semesterInput }) {
                 </div>
               </div>
               {studentId ? (
-                <Link className="btn btn-outline-primary btn-sm align-self-start" to={`/admin/learning-journey/students/${encodeURIComponent(studentId)}`}>
+                <Link className="btn btn-outline-primary btn-sm align-self-start" to={`/admin/learning-journey/students/${encodeURIComponent(studentId)}?semesterId=${encodeURIComponent(semesterInput || '')}`}>
                   開啟完整學生頁
                 </Link>
               ) : null}
@@ -348,72 +324,40 @@ function ProfileSummary({ profile, studentInput, semesterInput }) {
   );
 }
 
-function SemesterOverview({ dashboard, summary, departmentStats, cefrDistribution, quality, riskData, historyRecords }) {
-  const semester = dashboard?.semesters?.[0] || {};
-  const summaryData = summary || semester;
-  const skills = summaryData.skills || semester.skills || dashboard?.skills || {};
+function SemesterOverview({ overview, quality, riskData, historyRecords }) {
+  const summaryData = overview || {};
+  const skills = summaryData.skills || {};
+  const gradeRows = Array.isArray(summaryData.byGrade) ? summaryData.byGrade : [];
+  const departmentRows = Array.isArray(summaryData.byDepartment) ? summaryData.byDepartment : [];
   const riskItems = Array.isArray(riskData?.items) ? riskData.items : Array.isArray(riskData?.topStudents) ? riskData.topStudents : [];
 
-  if (!dashboard && !summary && !riskData) {
+  if (!overview && !riskData) {
     return <EmptyState>此區塊尚未取得資料，請點擊「查看學期總覽」。</EmptyState>;
   }
 
-  const renderCefrBar = (skillStats = {}, total = 0) => {
-    if (!total) return <div className="text-muted small">無名冊人數</div>;
-    const segments = (cefrDistribution?.levels?.length ? cefrDistribution.levels : CEFR_LEVELS)
-      .map((level) => {
-        const count = Number(skillStats?.[level] || 0);
-        const pct = total > 0 ? (count / total) * 100 : 0;
-        return { level, count, pct };
-      })
-      .filter((row) => row.count > 0);
-
-    if (segments.length === 0) {
-      return <div className="text-muted small">尚無 CEFR 分布資料。</div>;
-    }
-
-    return (
-      <div className="d-flex w-100 border rounded overflow-hidden bg-white" style={{ minHeight: 36 }}>
-        {segments.map(({ level, count, pct }) => (
-          <div
-            key={level}
-            title={`${cefrLevelLabel(level)}：${count} 人（${pct.toFixed(1)}%）`}
-            style={{
-              width: `${Math.max(pct, 6)}%`,
-              minWidth: '2.25rem',
-              background: cefrLevelColor(level),
-              color: level === 'NO_DATA' ? '#495057' : '#fff',
-              fontSize: 11,
-              textAlign: 'center',
-              padding: '4px 2px',
-            }}
-          >
-            <div className="fw-semibold">{cefrLevelLabel(level)}</div>
-            <div>{pct.toFixed(1)}%</div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   return (
     <div className="row g-3">
-      <KpiCard label="名冊人數" value={summaryData.rosterActiveCount ?? summaryData.rosterActiveStudentCount ?? 0} />
-      <KpiCard label="有成績人數" value={summaryData.validBestScoreStudentCount ?? 0} />
-      <KpiCard label="達標人數" value={summaryData.attainedStudentCount ?? 0} />
-      <KpiCard label="達標率" value={fmtRate(summaryData.attainmentRate)} />
+      <KpiCard label="名冊人數" value={summaryData.denominator ?? 0} />
+      {SKILL_KEYS.map((skill) => (
+        <KpiCard
+          key={skill}
+          label={`${SKILL_LABELS[skill]} B2+`}
+          value={`${skills?.[skill]?.b2PlusCount ?? 0} 人`}
+          hint={fmtRate(skills?.[skill]?.rate)}
+        />
+      ))}
 
       <div className="col-lg-7">
         <div className="card h-100">
-          <div className="card-header py-2 fw-semibold">CEFR 分布與達標率</div>
+          <div className="card-header py-2 fw-semibold">四技能 B2+ 達成比例</div>
           <div className="card-body">
             {Object.keys(SKILL_LABELS).map((skill) => {
-              const rate = Number(skills?.[skill]?.rate ?? skills?.[skill]?.attainmentRate ?? 0);
+              const rate = Number(skills?.[skill]?.rate ?? 0);
               return (
                 <div className="mb-3" key={skill}>
                   <div className="d-flex justify-content-between small mb-1">
                     <span>{SKILL_LABELS[skill]}</span>
-                    <span>{fmtRate(rate)}</span>
+                    <span>{skills?.[skill]?.b2PlusCount ?? 0} / {summaryData.denominator ?? 0}（{fmtRate(rate)}）</span>
                   </div>
                   <div className="progress" style={{ height: 10 }}>
                     <div className="progress-bar" style={{ width: `${Math.max(0, Math.min(rate * 100, 100))}%` }} />
@@ -440,7 +384,7 @@ function SemesterOverview({ dashboard, summary, departmentStats, cefrDistributio
                         <td>{row.riskScore ?? EMPTY}</td>
                         <td>{(row.reasons || []).map((r) => r.message || r).join('；') || EMPTY}</td>
                         <td>
-                          <Link className="btn btn-sm btn-outline-primary" to={`/admin/learning-journey/students/${encodeURIComponent(row.studentId)}`}>
+                          <Link className="btn btn-sm btn-outline-primary" to={`/admin/learning-journey/students/${encodeURIComponent(row.studentId)}?semesterId=${encodeURIComponent(summaryData.semesterId || '')}`}>
                             查看
                           </Link>
                         </td>
@@ -456,28 +400,24 @@ function SemesterOverview({ dashboard, summary, departmentStats, cefrDistributio
 
       <div className="col-12">
         <div className="card">
-          <div className="card-header py-2 fw-semibold">各系所統計</div>
+          <div className="card-header py-2 fw-semibold">年級統計</div>
           <div className="card-body p-0">
-            {!Array.isArray(departmentStats?.items) || departmentStats.items.length === 0 ? (
-              <div className="p-3 text-muted small">尚無系所統計資料。</div>
+            {gradeRows.length === 0 ? (
+              <div className="p-3 text-muted small">尚無年級統計資料。</div>
             ) : (
               <div className="table-responsive">
                 <table className="table table-sm table-striped mb-0 align-middle">
                   <thead className="table-light">
-                    <tr><th>系所</th><th>本國生總數</th><th>有成績</th><th>建檔率</th><th>大一</th><th>大二</th><th>大三</th><th>大四</th></tr>
+                    <tr><th>年級</th><th>名冊人數</th><th>聽力 B2+</th><th>閱讀 B2+</th><th>口說 B2+</th><th>寫作 B2+</th></tr>
                   </thead>
                   <tbody>
-                    {departmentStats.items.map((row) => (
-                      <tr key={row.department || 'unknown'}>
-                        <td>{row.department || EMPTY}</td>
-                        <td>{row.total ?? 0}</td>
-                        <td>{row.recorded ?? 0}</td>
-                        <td>{fmtRate(row.recordRate)}</td>
-                        {['1', '2', '3', '4'].map((grade) => {
-                          const total = row.grades?.[grade]?.total || 0;
-                          const recorded = row.grades?.[grade]?.recorded || 0;
-                          return <td key={grade}>{total > 0 ? `${recorded}/${total}` : EMPTY}</td>;
-                        })}
+                    {gradeRows.map((row) => (
+                      <tr key={row.grade || 'unknown'}>
+                        <td>{row.grade || EMPTY}</td>
+                        <td>{row.denominator ?? 0}</td>
+                        {SKILL_KEYS.map((skill) => (
+                          <td key={skill}>{row.skills?.[skill]?.b2PlusCount ?? 0}（{fmtRate(row.skills?.[skill]?.rate)}）</td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
@@ -490,22 +430,29 @@ function SemesterOverview({ dashboard, summary, departmentStats, cefrDistributio
 
       <div className="col-12">
         <div className="card">
-          <div className="card-header py-2 fw-semibold">完整 CEFR 分布</div>
-          <div className="card-body">
-            {!Array.isArray(cefrDistribution?.grades) || cefrDistribution.grades.length === 0 ? (
-              <div className="text-muted small">尚無 CEFR 分布資料。</div>
+          <div className="card-header py-2 fw-semibold">各系所統計</div>
+          <div className="card-body p-0">
+            {departmentRows.length === 0 ? (
+              <div className="p-3 text-muted small">尚無系所統計資料。</div>
             ) : (
-              cefrDistribution.grades.map((gradeRow) => (
-                <div key={gradeRow.grade} className="mb-3">
-                  <div className="fw-semibold mb-2">年級 {gradeRow.grade}</div>
-                  {SKILL_KEYS.map((skill) => (
-                    <div key={skill} className="d-flex gap-2 align-items-center mb-2">
-                      <div className="small" style={{ width: 72 }}>{SKILL_LABELS[skill]}</div>
-                      <div className="flex-grow-1">{renderCefrBar(gradeRow.skills?.[skill] || {}, Number(gradeRow.total || 0))}</div>
-                    </div>
-                  ))}
-                </div>
-              ))
+              <div className="table-responsive">
+                <table className="table table-sm table-striped mb-0 align-middle">
+                  <thead className="table-light">
+                    <tr><th>系所</th><th>名冊人數</th><th>聽力 B2+</th><th>閱讀 B2+</th><th>口說 B2+</th><th>寫作 B2+</th></tr>
+                  </thead>
+                  <tbody>
+                    {departmentRows.map((row) => (
+                      <tr key={row.department || 'unknown'}>
+                        <td>{row.department || EMPTY}</td>
+                        <td>{row.denominator ?? 0}</td>
+                        {SKILL_KEYS.map((skill) => (
+                          <td key={skill}>{row.skills?.[skill]?.b2PlusCount ?? 0}（{fmtRate(row.skills?.[skill]?.rate)}）</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
@@ -538,14 +485,15 @@ function SemesterOverview({ dashboard, summary, departmentStats, cefrDistributio
             ) : (
               <div className="table-responsive">
                 <table className="table table-sm mb-0 align-middle">
-                  <thead className="table-light"><tr><th>時間</th><th>學期</th><th>名冊</th><th>達標率</th></tr></thead>
+                  <thead className="table-light"><tr><th>時間</th><th>學期</th><th>名冊</th><th>聽力 B2+</th><th>閱讀 B2+</th></tr></thead>
                   <tbody>
                     {historyRecords.slice(0, 5).map((record) => (
                       <tr key={record.id}>
                         <td>{formatDate(record.createdAt)}</td>
                         <td>{record.semesterId}</td>
-                        <td>{record.summary?.rosterActiveStudentCount ?? record.summary?.rosterActiveCount ?? 0}</td>
-                        <td>{fmtRate(record.summary?.attainmentRate)}</td>
+                        <td>{record.summary?.denominator ?? 0}</td>
+                        <td>{fmtRate(record.summary?.skills?.listening?.rate)}</td>
+                        <td>{fmtRate(record.summary?.skills?.reading?.rate)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -583,8 +531,15 @@ function StudentsTab({ state, filters, onFilterChange, onQuery, onPage }) {
               <input className="form-control" value={filters.department} onChange={(e) => onFilterChange({ department: e.target.value })} />
             </div>
             <div className="col-md-2">
-              <label className="form-label small">達標</label>
-              <select className="form-select" value={filters.attained} onChange={(e) => onFilterChange({ attained: e.target.value })}>
+              <label className="form-label small">技能</label>
+              <select className="form-select" value={filters.skill} onChange={(e) => onFilterChange({ skill: e.target.value })}>
+                <option value="">全部</option>
+                {SKILL_KEYS.map((skill) => <option key={skill} value={skill}>{SKILL_LABELS[skill]}</option>)}
+              </select>
+            </div>
+            <div className="col-md-2">
+              <label className="form-label small">B2+</label>
+              <select className="form-select" value={filters.b2Plus} onChange={(e) => onFilterChange({ b2Plus: e.target.value })}>
                 <option value="">全部</option>
                 <option value="true">是</option>
                 <option value="false">否</option>
@@ -617,14 +572,14 @@ function StudentsTab({ state, filters, onFilterChange, onQuery, onPage }) {
               <thead className="table-light">
                 <tr>
                   <th>學號</th><th>姓名</th><th>年級</th><th>系所</th>
-                  <th>聽力</th><th>閱讀</th><th>口說</th><th>寫作</th><th>達標</th><th>操作</th>
+                  <th>聽力</th><th>閱讀</th><th>口說</th><th>寫作</th><th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
                   <tr
                     key={row.studentId}
-                    onClick={() => navigate(`/admin/learning-journey/students/${encodeURIComponent(row.studentId)}`)}
+                    onClick={() => navigate(`/admin/learning-journey/students/${encodeURIComponent(row.studentId)}?semesterId=${encodeURIComponent(semesterId || '')}`)}
                     style={{ cursor: 'pointer' }}
                   >
                     <td className="font-monospace">{row.studentId}</td>
@@ -635,11 +590,10 @@ function StudentsTab({ state, filters, onFilterChange, onQuery, onPage }) {
                     <td>{row.bestReadingCefr || EMPTY}</td>
                     <td>{row.bestSpeakingCefr || EMPTY}</td>
                     <td>{row.bestWritingCefr || EMPTY}</td>
-                    <td>{row.attained ? '是' : '否'}</td>
                     <td>
                       <Link
                         className="btn btn-sm btn-outline-primary"
-                        to={`/admin/learning-journey/students/${encodeURIComponent(row.studentId)}`}
+                        to={`/admin/learning-journey/students/${encodeURIComponent(row.studentId)}?semesterId=${encodeURIComponent(semesterId || '')}`}
                         onClick={(event) => event.stopPropagation()}
                       >
                         查看
@@ -680,8 +634,6 @@ function DiagnosticsPanel({
   onRebuild,
   onLoadStatus,
   onLoadReadiness,
-  onLoadSummaryCompare,
-  onLoadStudentsCompare,
 }) {
   if (!canViewDiagnostics) return null;
 
@@ -693,7 +645,7 @@ function DiagnosticsPanel({
       <div className="card-body small">
         {/* TODO: 若後續新增 developer role，將此區塊改為 developer-only。 */}
         <p className="text-muted">
-          此區提供資料來源狀態、資料切換檢查與資料一致性比對；預設收合，僅供高權限維運使用。
+          此區提供 Learning Journey 資料來源狀態與資料切換檢查；預設收合，僅供高權限維運使用。
         </p>
         <div className="alert alert-light border py-2">
           匯入作業請使用既有匯入頁：
@@ -722,19 +674,16 @@ function DiagnosticsPanel({
               ) : (
                 <div className="table-responsive">
                   <table className="table table-sm mb-0 align-middle">
-                    <thead className="table-light"><tr><th>時間</th><th>名稱</th><th>匯入</th><th>新增達標</th></tr></thead>
+                    <thead className="table-light"><tr><th>時間</th><th>來源</th><th>狀態</th><th>原因</th></tr></thead>
                     <tbody>
-                      {importHistories.slice(0, 10).map((row) => {
-                        const newB2 = row.newB2BySkill || {};
-                        return (
-                          <tr key={row.id || row.importBatchId || row.importedAt}>
-                            <td>{formatDate(row.importedAt)}</td>
-                            <td>{row.importName || EMPTY}</td>
-                            <td>{row.importedCount ?? 0}</td>
-                            <td>{`${newB2.listening || 0}/${newB2.reading || 0}/${newB2.speaking || 0}/${newB2.writing || 0}`}</td>
-                          </tr>
-                        );
-                      })}
+                      {importHistories.slice(0, 10).map((row) => (
+                        <tr key={row.id || row.createdAt}>
+                          <td>{formatDate(row.createdAt || row.importedAt)}</td>
+                          <td>{row.sourceType || row.sourceRef || EMPTY}</td>
+                          <td>{row.status || EMPTY}</td>
+                          <td>{row.reasonMessage || row.reasonCode || EMPTY}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -748,10 +697,9 @@ function DiagnosticsPanel({
                 <div className="text-muted">尚無資料品質資料，請先查看學期總覽。</div>
               ) : (
                 <div className="row g-2">
-                  <div className="col-6"><span className="text-muted">無成績學生</span><div className="fw-semibold">{quality.kpis?.noScoreStudentCount ?? 0}</div></div>
-                  <div className="col-6"><span className="text-muted">孤兒 BestSkill</span><div className="fw-semibold">{quality.kpis?.orphanBestSkillCount ?? 0}</div></div>
-                  <div className="col-6"><span className="text-muted">成績覆蓋率</span><div className="fw-semibold">{fmtRate(quality.rates?.scoreCoverageRate)}</div></div>
-                  <div className="col-6"><span className="text-muted">名冊完整率</span><div className="fw-semibold">{fmtRate(quality.rates?.rosterCompletenessRate)}</div></div>
+                  <div className="col-6"><span className="text-muted">名冊人數</span><div className="fw-semibold">{quality.kpis?.rosterStudentCount ?? 0}</div></div>
+                  <div className="col-6"><span className="text-muted">匯入警示</span><div className="fw-semibold">{Array.isArray(quality.warnings) ? quality.warnings.length : 0}</div></div>
+                  <div className="col-12"><span className="text-muted">資料來源</span><div className="fw-semibold">Learning Journey</div></div>
                 </div>
               )}
             </div>
@@ -765,15 +713,9 @@ function DiagnosticsPanel({
           <button type="button" className="btn btn-outline-primary btn-sm" disabled={diagnostics.readiness.loading} onClick={onLoadReadiness}>
             執行資料切換檢查
           </button>
-          <button type="button" className="btn btn-outline-primary btn-sm" disabled={diagnostics.summaryCompare.loading} onClick={onLoadSummaryCompare}>
-            執行學期摘要一致性比對
-          </button>
-          <button type="button" className="btn btn-outline-primary btn-sm" disabled={diagnostics.studentsCompare.loading} onClick={onLoadStudentsCompare}>
-            執行學生名單一致性比對
-          </button>
         </div>
 
-        {['status', 'readiness', 'summaryCompare', 'studentsCompare'].map((key) => {
+        {['status', 'readiness'].map((key) => {
           const item = diagnostics[key];
           return (
             <div className="border rounded p-2 mb-2" key={key}>
@@ -781,8 +723,6 @@ function DiagnosticsPanel({
                 {{
                   status: '資料來源狀態',
                   readiness: '資料切換檢查',
-                  summaryCompare: '學期摘要一致性比對',
-                  studentsCompare: '學生名單一致性比對',
                 }[key]}
               </div>
               {item.loading ? <div className="text-muted">檢查中...</div> : null}
@@ -829,7 +769,7 @@ export default function LearningJourneyHubPage() {
     requestId: '',
   });
   const [historyRecords, setHistoryRecords] = useState([]);
-  const [studentFilters, setStudentFilters] = useState({ keyword: '', grade: '', department: '', attained: '', limit: 50, offset: 0 });
+  const [studentFilters, setStudentFilters] = useState({ keyword: '', grade: '', department: '', skill: '', b2Plus: '', limit: 50, offset: 0 });
   const [studentsState, setStudentsState] = useState({ loading: false, error: '', requestId: '', rows: [], pagination: {}, semesterId: semesterInput, dataSource: '' });
   const [rebuilding, setRebuilding] = useState(false);
   const [rebuildResult, setRebuildResult] = useState(null);
@@ -837,15 +777,13 @@ export default function LearningJourneyHubPage() {
   const [diagnostics, setDiagnostics] = useState({
     status: { loading: false, data: null, error: '', requestId: '' },
     readiness: { loading: false, data: null, error: '', requestId: '' },
-    summaryCompare: { loading: false, data: null, error: '', requestId: '' },
-    studentsCompare: { loading: false, data: null, error: '', requestId: '' },
   });
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const list = await getSemesters(token);
+        const list = await getLearningJourneySemesters(token);
         if (!mounted) return;
         setSemesters(Array.isArray(list) ? list : []);
         setSemesterInput((prev) => prev || pickDefaultSemesterId(list));
@@ -913,17 +851,13 @@ export default function LearningJourneyHubPage() {
     syncQuery('overview');
     setOverviewState((prev) => ({ ...prev, status: 'loading', error: '', requestId: '' }));
     try {
-      const [dashboard, summary, departmentStats, cefrDistribution, quality, importHistoryData, risk, freshness] = await Promise.all([
-        getLearningJourneySemesterDashboard(token, semesterId).catch(() => null),
-        getSemesterSummary(token, semesterId).catch(() => null),
-        getSemesterDepartmentStats(token, semesterId).catch(() => null),
-        getSemesterCefrDistribution(token, semesterId).catch(() => null),
-        getSemesterDataQuality(token, semesterId).catch(() => null),
-        getSemesterImportHistories(token, semesterId, { limit: 200 }).catch(() => null),
+      const [overview, importHistoryData, risk, freshness] = await Promise.all([
+        getLearningJourneySemesterOverview(token, semesterId).catch(() => null),
+        getLearningJourneyImportHistories(token, semesterId, { limit: 200 }).catch(() => null),
         getLearningJourneyRiskStudents(token, semesterId).catch(() => null),
         getLearningJourneyDataFreshness(token, semesterId).catch(() => null),
       ]);
-      if (!dashboard && !summary && !departmentStats && !cefrDistribution && !quality && !risk) {
+      if (!overview && !risk) {
         setOverviewState((prev) => ({
           ...prev,
           status: 'error',
@@ -934,15 +868,16 @@ export default function LearningJourneyHubPage() {
       }
 
       const importHistories = Array.isArray(importHistoryData?.items) ? importHistoryData.items : [];
-      const snapshotSummary = summary || dashboard?.semesters?.[0] || null;
+      const snapshotSummary = overview || null;
       if (snapshotSummary) {
         try {
           const fingerprint = [
             semesterId,
-            snapshotSummary.rosterActiveStudentCount ?? snapshotSummary.rosterActiveCount,
-            snapshotSummary.validBestScoreStudentCount,
-            snapshotSummary.attainedStudentCount,
-            snapshotSummary.attainmentRate,
+            snapshotSummary.denominator,
+            snapshotSummary.skills?.listening?.b2PlusCount,
+            snapshotSummary.skills?.reading?.b2PlusCount,
+            snapshotSummary.skills?.speaking?.b2PlusCount,
+            snapshotSummary.skills?.writing?.b2PlusCount,
           ].join('|');
           const existing = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
           const arr = Array.isArray(existing) ? existing : [];
@@ -958,11 +893,11 @@ export default function LearningJourneyHubPage() {
 
       setOverviewState({
         status: 'success',
-        dashboard: dashboard ? { ...dashboard, freshness } : null,
-        summary,
-        departmentStats,
-        cefrDistribution,
-        quality,
+        dashboard: null,
+        summary: overview ? { ...overview, freshness } : null,
+        departmentStats: null,
+        cefrDistribution: null,
+        quality: overview ? { kpis: { rosterStudentCount: overview.denominator }, warnings: overview.warnings } : null,
         importHistories,
         risk,
         error: '',
@@ -984,7 +919,7 @@ export default function LearningJourneyHubPage() {
     syncQuery('students');
     setStudentsState((prev) => ({ ...prev, loading: true, error: '', requestId: '', semesterId }));
     try {
-      const data = await getSemesterStudents(token, semesterId, filters);
+      const data = await getLearningJourneySemesterStudents(token, semesterId, filters);
       setStudentsState({
         loading: false,
         error: '',
@@ -1026,7 +961,7 @@ export default function LearningJourneyHubPage() {
     setRebuildError('');
     setRebuildResult(null);
     try {
-      const result = await rebuildSemesterBestSkills(token, semesterId);
+      const result = await postLearningJourneyRebuildFinal(token, semesterId);
       setRebuildResult(result);
       await loadOverview();
     } catch (error) {
@@ -1130,10 +1065,7 @@ export default function LearningJourneyHubPage() {
           {overviewState.status === 'error' ? <ErrorState message={overviewState.error} requestId={overviewState.requestId} /> : null}
           {overviewState.status === 'success' ? (
             <SemesterOverview
-              dashboard={overviewState.dashboard}
-              summary={overviewState.summary}
-              departmentStats={overviewState.departmentStats}
-              cefrDistribution={overviewState.cefrDistribution}
+              overview={overviewState.summary}
               quality={overviewState.quality}
               riskData={overviewState.risk}
               historyRecords={historyRecords}
@@ -1164,8 +1096,6 @@ export default function LearningJourneyHubPage() {
           onRebuild={handleRebuildBestSkills}
           onLoadStatus={() => loadDiagnostic('status', () => getLearningJourneyReadModelStatus(token))}
           onLoadReadiness={() => loadDiagnostic('readiness', () => getLearningJourneyReadiness(token, semesterInput.trim()))}
-          onLoadSummaryCompare={() => loadDiagnostic('summaryCompare', () => getLearningJourneyEnglishTestSummaryCompare(token, semesterInput.trim()))}
-          onLoadStudentsCompare={() => loadDiagnostic('studentsCompare', () => getLearningJourneyEnglishTestStudentsCompare(token, semesterInput.trim()))}
         />
       ) : null}
 
@@ -1181,8 +1111,6 @@ export default function LearningJourneyHubPage() {
           onRebuild={handleRebuildBestSkills}
           onLoadStatus={() => loadDiagnostic('status', () => getLearningJourneyReadModelStatus(token))}
           onLoadReadiness={() => loadDiagnostic('readiness', () => getLearningJourneyReadiness(token, semesterInput.trim()))}
-          onLoadSummaryCompare={() => loadDiagnostic('summaryCompare', () => getLearningJourneyEnglishTestSummaryCompare(token, semesterInput.trim()))}
-          onLoadStudentsCompare={() => loadDiagnostic('studentsCompare', () => getLearningJourneyEnglishTestStudentsCompare(token, semesterInput.trim()))}
         />
       ) : null}
     </div>

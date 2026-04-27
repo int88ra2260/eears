@@ -166,19 +166,17 @@ export default function useAdminEventWorkspace({ token, userRole, accessProfile:
     return now.isBefore(twoHoursBefore);
   };
 
-  const handleDeleteReservation = async (reservationId, studentId, studentName) => {
+  const handleDeleteReservation = async (reservationId, studentId, studentName, verificationCode) => {
     if (!canManageEvents || !canAccessCurrentEvent) {
       showErrorMessage('您沒有刪除預約權限');
-      return;
+      return false;
     }
-    const ok = await confirm({
-      title: '確認刪除預約紀錄？',
-      description: `確認要刪除學生 ${studentId} (${studentName}) 的預約紀錄嗎？此操作無法復原。`,
-      confirmText: '刪除',
-      cancelText: '取消',
-      variant: 'danger',
-    });
-    if (!ok) return;
+    const code = String(verificationCode || '').trim();
+    if (!code) {
+      showErrorMessage('請輸入該筆預約的取消驗證碼');
+      return false;
+    }
+
     try {
       const response = await fetch(`/api/admin/reservations/${reservationId}`, {
         method: 'DELETE',
@@ -186,18 +184,22 @@ export default function useAdminEventWorkspace({ token, userRole, accessProfile:
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ verificationCode: code }),
       });
       const data = await response.json();
       if (response.ok) {
         showSuccessMessage('已成功刪除預約紀錄');
         await resv.refresh();
         await meta.reload();
+        return true;
       } else {
-        showErrorMessage(data.error || '刪除預約失敗');
+        showErrorMessage(data.error || data.message || '刪除預約失敗');
+        return false;
       }
     } catch (error) {
       console.error('刪除預約錯誤:', error);
       showErrorMessage('刪除預約失敗：' + error.message);
+      return false;
     }
   };
 

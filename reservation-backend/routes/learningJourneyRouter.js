@@ -69,6 +69,17 @@ router.post('/admin/jobs/reconcile-semester', requireSuperAdmin, controller.post
 router.post('/admin/sync', requireSuperAdmin, controller.postSync);
 router.post('/admin/course-import/dry-run', requireAdminPlus, excelUpload.single('file'), controller.postCourseImportDryRun);
 router.post('/admin/course-import/apply', requireSuperAdmin, excelUpload.single('file'), controller.postCourseImportApply);
+router.post('/admin/enrollment-import/dry-run', requireAdminPlus, excelUpload.single('file'), controller.postFinalEnrollmentImportDryRun);
+router.post('/admin/enrollment-import/apply', requireSuperAdmin, excelUpload.single('file'), controller.postFinalEnrollmentImportApply);
+router.post('/admin/external-exam-import/dry-run', requireAdminPlus, excelUpload.single('file'), controller.postFinalExternalExamImportDryRun);
+router.post('/admin/external-exam-import/apply', requireSuperAdmin, excelUpload.single('file'), controller.postFinalExternalExamImportApply);
+router.post('/admin/rebuild-final', requireSuperAdmin, controller.postFinalRebuildHandler);
+
+router.get('/semesters', controller.getFinalSemestersHandler);
+router.get('/semesters/:id/overview', controller.getFinalSemesterOverviewHandler);
+router.get('/semesters/:id/import-histories', requireAdminPlus, controller.getFinalImportHistoriesHandler);
+router.get('/semesters/:id/students', controller.getFinalSemesterStudentsHandler);
+router.get('/students/:studentId', controller.getFinalStudentDetailHandler);
 
 router.get(
   '/semesters/:semesterId/english-test-summary/compare',

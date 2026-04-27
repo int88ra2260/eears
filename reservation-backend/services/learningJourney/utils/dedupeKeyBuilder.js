@@ -11,6 +11,15 @@ function buildAttemptDedupeKey({ studentId, examVendor, examDate, examScope, sou
   return crypto.createHash('sha256').update(raw).digest('hex');
 }
 
+function buildExternalExamDedupeKey({ studentId, examDate, examType }) {
+  const normalizedStudentId = normalizeStudentId(studentId);
+  const normalizedDate = String(examDate || '').trim();
+  const normalizedType = String(examType || '').trim().toUpperCase();
+  const raw = ['EXTERNAL_FINAL', normalizedStudentId, normalizedDate, normalizedType].join('|');
+  return crypto.createHash('sha256').update(raw).digest('hex');
+}
+
 module.exports = {
-  buildAttemptDedupeKey
+  buildAttemptDedupeKey,
+  buildExternalExamDedupeKey
 };

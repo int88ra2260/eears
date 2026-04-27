@@ -64,6 +64,7 @@ const CourseOutcomeMapping = require('./CourseOutcomeMapping');
 const MigrationBatch = require('./MigrationBatch');
 const MigrationCheckpoint = require('./MigrationCheckpoint');
 const MigrationQuarantine = require('./MigrationQuarantine');
+const LearningJourneyImportHistory = require('./LearningJourneyImportHistory');
 const JobRun = require('./JobRun');
 
 Survey.hasMany(SurveyVersion, { foreignKey: 'surveyId', onDelete: 'CASCADE' });
@@ -260,5 +261,6 @@ module.exports = {
   MigrationBatch,
   MigrationCheckpoint,
   MigrationQuarantine,
+  LearningJourneyImportHistory,
   JobRun,
 };

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
-  getLearningJourneyProfile,
+  getLearningJourneyStudentDetail,
   getLearningJourneyStudentConsistency,
   getLearningJourneyStudentReport,
   getLearningJourneyStudentReportHtml,
@@ -52,17 +52,26 @@ function downloadJson(filename, data) {
 function buildRiskHints(profile) {
   const flags = profile?.student?.aggregateFlags || {};
   const dataQuality = Array.isArray(profile?.dataQuality) ? profile.dataQuality : [];
+  const warnings = Array.isArray(profile?.warnings) ? profile.warnings : [];
   const hints = [];
 
-  if (!flags.hasExamRegistrations) hints.push({ level: 'warning', message: '尚無 BESTEP / 培力英檢報名紀錄。' });
-  if (!flags.hasEtExamAttempts && !flags.hasBestepScores) hints.push({ level: 'warning', message: '尚無 BESTEP 或其他英檢成績紀錄。' });
-  if (!flags.hasReservations && !flags.hasActivityParticipations && !flags.hasBestepAttendance) hints.push({ level: 'info', message: '尚無活動參與或 BESTEP 出席紀錄。' });
-  if (!flags.hasCourseEnrollments) hints.push({ level: 'info', message: '尚無修課紀錄。' });
+  if (profile?.source === 'learning_journey_final') {
+    if (!Array.isArray(profile.bestep) || profile.bestep.length === 0) hints.push({ level: 'warning', message: '尚無 BESTEP / 培力英檢紀錄。' });
+    if (!Array.isArray(profile.externalExams) || profile.externalExams.length === 0) hints.push({ level: 'warning', message: '尚無其他英檢成績紀錄。' });
+    if (!profile.activitySummary || (profile.activitySummary.attended + profile.activitySummary.absent + profile.activitySummary.cancelled) === 0) hints.push({ level: 'info', message: '尚無活動參與紀錄。' });
+    if (!Array.isArray(profile.courses) || profile.courses.length === 0) hints.push({ level: 'info', message: '尚無修課紀錄。' });
+  } else {
+    if (!flags.hasExamRegistrations) hints.push({ level: 'warning', message: '尚無 BESTEP / 培力英檢報名紀錄。' });
+    if (!flags.hasEtExamAttempts && !flags.hasBestepScores) hints.push({ level: 'warning', message: '尚無 BESTEP 或其他英檢成績紀錄。' });
+    if (!flags.hasReservations && !flags.hasActivityParticipations && !flags.hasBestepAttendance) hints.push({ level: 'info', message: '尚無活動參與或 BESTEP 出席紀錄。' });
+    if (!flags.hasCourseEnrollments) hints.push({ level: 'info', message: '尚無修課紀錄。' });
+  }
 
   for (const q of dataQuality) {
     if (q?.severity === 'error') hints.push({ level: 'danger', message: q.message || q.code });
     if (q?.severity === 'warning') hints.push({ level: 'warning', message: q.message || q.code });
   }
+  for (const w of warnings) hints.push({ level: w.severity === 'error' ? 'danger' : 'warning', message: w.message || w.code || String(w) });
 
   return hints;
 }
@@ -85,6 +94,8 @@ function EmptyState({ children = '尚無資料。' }) {
 
 export default function LearningJourneyStudentPage() {
   const { studentId } = useParams();
+  const [searchParams] = useSearchParams();
+  const semesterId = searchParams.get('semesterId') || '';
   const token = localStorage.getItem('token') || '';
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -102,7 +113,7 @@ export default function LearningJourneyStudentPage() {
       setRequestId('');
       try {
         const [data, consistencyData] = await Promise.all([
-          getLearningJourneyProfile(token, studentId),
+          getLearningJourneyStudentDetail(token, studentId, semesterId ? { semesterId } : {}),
           getLearningJourneyStudentConsistency(token, studentId).catch(() => null),
         ]);
         if (!cancelled) {
@@ -122,21 +133,33 @@ export default function LearningJourneyStudentPage() {
     return () => {
       cancelled = true;
     };
-  }, [studentId, token]);
+  }, [semesterId, studentId, token]);
 
   const student = profile?.student || {};
   const flags = student.aggregateFlags || {};
-  const registrations = Array.isArray(profile?.examRegistrations) ? profile.examRegistrations : [];
-  const attempts = Array.isArray(profile?.examAttempts) ? profile.examAttempts : [];
+  const registrations = profile?.source === 'learning_journey_final'
+    ? (Array.isArray(profile?.bestep) ? profile.bestep.filter((row) => row.type === 'registration') : [])
+    : (Array.isArray(profile?.examRegistrations) ? profile.examRegistrations : []);
+  const attempts = profile?.source === 'learning_journey_final'
+    ? (Array.isArray(profile?.externalExams) ? profile.externalExams : [])
+    : (Array.isArray(profile?.examAttempts) ? profile.examAttempts : []);
   const ljsAttempts = Array.isArray(student?.ljsExamAttempts) ? student.ljsExamAttempts : [];
-  const activities = Array.isArray(profile?.activities) ? profile.activities : [];
+  const activities = profile?.source === 'learning_journey_final'
+    ? (Array.isArray(profile?.timeline) ? profile.timeline.filter((row) => row.type === 'activity') : [])
+    : (Array.isArray(profile?.activities) ? profile.activities : []);
   const courses = Array.isArray(profile?.courses) ? profile.courses : [];
   const timeline = Array.isArray(profile?.timeline) ? profile.timeline : [];
-  const dataQuality = Array.isArray(profile?.dataQuality) ? profile.dataQuality : [];
-  const bestSkillsBySemester = profile?.bestSkills || {};
-  const bestSkillRows = Object.values(bestSkillsBySemester).flatMap((rows) => (Array.isArray(rows) ? rows : []));
+  const dataQuality = [
+    ...(Array.isArray(profile?.dataQuality) ? profile.dataQuality : []),
+    ...(Array.isArray(profile?.warnings) ? profile.warnings : []),
+  ];
+  const bestSkillRows = profile?.source === 'learning_journey_final'
+    ? [{ semesterId: profile?.currentSemester?.semesterId || semesterId, ...(profile?.bestSkills || {}) }]
+    : Object.values(profile?.bestSkills || {}).flatMap((rows) => (Array.isArray(rows) ? rows : []));
   const riskHints = useMemo(() => buildRiskHints(profile), [profile]);
-  const bestepEvents = timeline.filter((ev) => ['bestep_exam_scores', 'bestep_attendance'].includes(ev.source));
+  const bestepEvents = profile?.source === 'learning_journey_final'
+    ? timeline.filter((ev) => ev.source === 'bestep')
+    : timeline.filter((ev) => ['bestep_exam_scores', 'bestep_attendance'].includes(ev.source));
   const otherExamAttempts = [
     ...attempts.map((row) => ({ source: 'et_exam_attempts', ...row })),
     ...ljsAttempts
@@ -218,9 +241,9 @@ export default function LearningJourneyStudentPage() {
             <Section title="基本資料">
               <div className="row g-2">
                 <div className="col-md-3"><div className="text-muted">學號</div><div className="fw-semibold">{text(student.studentId || studentId)}</div></div>
-                <div className="col-md-3"><div className="text-muted">姓名</div><div>{text(student.etStudentMaster?.name || student.etStudentMaster?.studentName)}</div></div>
-                <div className="col-md-3"><div className="text-muted">LJS Student PK</div><div>{text(student.ljsStudentPk)}</div></div>
-                <div className="col-md-3"><div className="text-muted">資料來源狀態</div><div>{flags.hasLjsStudent ? '已建立 LJS 主檔' : '尚無 LJS 主檔'}</div></div>
+                <div className="col-md-3"><div className="text-muted">姓名</div><div>{text(student.studentName || student.etStudentMaster?.name || student.etStudentMaster?.studentName)}</div></div>
+                <div className="col-md-3"><div className="text-muted">學期</div><div>{text(profile.currentSemester?.semesterId || semesterId)}</div></div>
+                <div className="col-md-3"><div className="text-muted">資料來源狀態</div><div>{profile.source === 'learning_journey_final' ? 'Learning Journey' : flags.hasLjsStudent ? '已建立 LJS 主檔' : '尚無 LJS 主檔'}</div></div>
               </div>
             </Section>
           </div>
@@ -276,10 +299,10 @@ export default function LearningJourneyStudentPage() {
           <div className="col-lg-6">
             <Section title="達標與彙整狀態">
               <div className="row g-2">
-                <div className="col-6"><div className="text-muted">BESTEP/英檢報名</div><div>{flags.hasExamRegistrations ? '有' : '無'}</div></div>
-                <div className="col-6"><div className="text-muted">BESTEP 成績</div><div>{flags.hasBestepScores ? '有' : '無'}</div></div>
-                <div className="col-6"><div className="text-muted">活動參與</div><div>{flags.hasReservations || flags.hasActivityParticipations ? '有' : '無'}</div></div>
-                <div className="col-6"><div className="text-muted">修課紀錄</div><div>{flags.hasCourseEnrollments ? `${flags.courseEnrollmentCount || courses.length} 筆` : '無'}</div></div>
+                <div className="col-6"><div className="text-muted">BESTEP/英檢報名</div><div>{registrations.length ? `${registrations.length} 筆` : '無'}</div></div>
+                <div className="col-6"><div className="text-muted">其他英檢</div><div>{otherExamAttempts.length ? `${otherExamAttempts.length} 筆` : '無'}</div></div>
+                <div className="col-6"><div className="text-muted">活動參與</div><div>{activities.length ? `${activities.length} 筆` : '無'}</div></div>
+                <div className="col-6"><div className="text-muted">修課紀錄</div><div>{courses.length ? `${courses.length} 筆` : '無'}</div></div>
               </div>
             </Section>
           </div>
@@ -296,10 +319,10 @@ export default function LearningJourneyStudentPage() {
                       {bestSkillRows.map((row, idx) => (
                         <tr key={row.id || `${row.semesterId}-${idx}`}>
                           <td>{text(row.semesterId)}</td>
-                          <td>{text(row.bestListeningCefr)}</td>
-                          <td>{text(row.bestReadingCefr)}</td>
-                          <td>{text(row.bestSpeakingCefr)}</td>
-                          <td>{text(row.bestWritingCefr)}</td>
+                          <td>{text(row.bestListeningCefr || row.listening?.cefr)}</td>
+                          <td>{text(row.bestReadingCefr || row.reading?.cefr)}</td>
+                          <td>{text(row.bestSpeakingCefr || row.speaking?.cefr)}</td>
+                          <td>{text(row.bestWritingCefr || row.writing?.cefr)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -315,7 +338,9 @@ export default function LearningJourneyStudentPage() {
                 <ul className="ps-3 mb-0">
                   {activities.slice(0, 12).map((row, idx) => (
                     <li key={idx}>
-                      {row.kind === 'reservation'
+                      {profile.source === 'learning_journey_final'
+                        ? `${formatDate(row.date)}：${row.title || EMPTY} - ${row.status || EMPTY}`
+                        : row.kind === 'reservation'
                         ? `預約：${row.event?.eventType || row.event?.name || EMPTY} - ${row.reservation?.checkinStatus || EMPTY}`
                         : `LJS：${row.participation?.activityType || EMPTY} - ${row.participation?.attendanceStatus || EMPTY}`}
                     </li>
@@ -364,7 +389,7 @@ export default function LearningJourneyStudentPage() {
                         return (
                           <tr key={attempt.id || idx}>
                             <td>{text(attempt.testDate || attempt.examDate)}</td>
-                            <td>{text(attempt.testType || attempt.examType || attempt.sourceType || attempt.source)}</td>
+                            <td>{text(attempt.testType || attempt.examType || attempt.examVendor || attempt.sourceType || attempt.source)}</td>
                             <td>{skillText(scores.listening)}</td>
                             <td>{skillText(scores.reading)}</td>
                             <td>{skillText(scores.speaking)}</td>

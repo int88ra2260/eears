@@ -1,9 +1,6 @@
 import { fetchClient } from '../utils/fetchClient';
 
-// TODO (Phase Next):
-// englishTestService 與 learningJourneyApi 存在部分領域重疊（學期摘要、學生資料）。
-// 未來可考慮統一為單一 read model API（Learning Journey）。
-// 本階段不進行重構，以避免影響既有功能。
+const BASE_URL = '/api/admin/learning-journey';
 
 function authHeaders(token) {
   return {
@@ -33,7 +30,7 @@ async function parseEnvelope(res) {
 
 export async function getLearningJourneyProfile(token, studentId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/students/${encodeURIComponent(studentId)}/profile`,
+    `${BASE_URL}/students/${encodeURIComponent(studentId)}/profile`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
@@ -41,7 +38,7 @@ export async function getLearningJourneyProfile(token, studentId) {
 
 export async function getLearningJourneyTimeline(token, studentId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/students/${encodeURIComponent(studentId)}/timeline`,
+    `${BASE_URL}/students/${encodeURIComponent(studentId)}/timeline`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
@@ -49,7 +46,7 @@ export async function getLearningJourneyTimeline(token, studentId) {
 
 export async function getLearningJourneyStudentConsistency(token, studentId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/students/${encodeURIComponent(studentId)}/consistency`,
+    `${BASE_URL}/students/${encodeURIComponent(studentId)}/consistency`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
@@ -57,7 +54,7 @@ export async function getLearningJourneyStudentConsistency(token, studentId) {
 
 export async function getLearningJourneyStudentReport(token, studentId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/students/${encodeURIComponent(studentId)}/report?format=json`,
+    `${BASE_URL}/students/${encodeURIComponent(studentId)}/report?format=json`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
@@ -65,7 +62,7 @@ export async function getLearningJourneyStudentReport(token, studentId) {
 
 export async function getLearningJourneyStudentReportHtml(token, studentId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/students/${encodeURIComponent(studentId)}/report?format=html`,
+    `${BASE_URL}/students/${encodeURIComponent(studentId)}/report?format=html`,
     { headers: authHeaders(token) }
   );
   const text = await res.text();
@@ -80,7 +77,71 @@ export async function getLearningJourneyStudentReportHtml(token, studentId) {
 
 export async function getLearningJourneySemesterDashboard(token, semesterId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/semesters/${encodeURIComponent(semesterId)}/dashboard`,
+    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/dashboard`,
+    { headers: authHeaders(token) }
+  );
+  return parseEnvelope(res);
+}
+
+export async function getLearningJourneySemesters(token) {
+  const res = await fetchClient(`${BASE_URL}/semesters`, {
+    headers: authHeaders(token),
+  });
+  return parseEnvelope(res);
+}
+
+export async function getLearningJourneySemesterOverview(token, semesterId) {
+  const res = await fetchClient(
+    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/overview`,
+    { headers: authHeaders(token) }
+  );
+  return parseEnvelope(res);
+}
+
+export async function getLearningJourneySemesterStudents(token, semesterId, params = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') qs.set(key, String(value));
+  });
+  const res = await fetchClient(
+    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/students?${qs.toString()}`,
+    { headers: authHeaders(token) }
+  );
+  return parseEnvelope(res);
+}
+
+export async function getLearningJourneyImportHistories(token, semesterId, params = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') qs.set(key, String(value));
+  });
+  const res = await fetchClient(
+    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/import-histories?${qs.toString()}`,
+    { headers: authHeaders(token) }
+  );
+  return parseEnvelope(res);
+}
+
+export async function postLearningJourneyRebuildFinal(token, semesterId) {
+  const res = await fetchClient(`${BASE_URL}/admin/rebuild-final`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ semesterId }),
+  });
+  return parseEnvelope(res);
+}
+
+export async function getLearningJourneyStudentDetail(token, studentId, params = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') qs.set(key, String(value));
+  });
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetchClient(
+    `${BASE_URL}/students/${encodeURIComponent(studentId)}${query}`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
@@ -89,7 +150,7 @@ export async function getLearningJourneySemesterDashboard(token, semesterId) {
 export async function getLearningJourneyReconciliation(token, semesterId) {
   const qs = new URLSearchParams();
   qs.set('semesterId', semesterId);
-  const res = await fetchClient(`/api/v3/learning-journey/admin/reconciliation?${qs.toString()}`, {
+  const res = await fetchClient(`${BASE_URL}/admin/reconciliation?${qs.toString()}`, {
     headers: authHeaders(token),
   });
   return parseEnvelope(res);
@@ -98,14 +159,14 @@ export async function getLearningJourneyReconciliation(token, semesterId) {
 export async function getLearningJourneyReadiness(token, semesterId) {
   const qs = new URLSearchParams();
   qs.set('semesterId', semesterId);
-  const res = await fetchClient(`/api/v3/learning-journey/admin/readiness?${qs.toString()}`, {
+  const res = await fetchClient(`${BASE_URL}/admin/readiness?${qs.toString()}`, {
     headers: authHeaders(token),
   });
   return parseEnvelope(res);
 }
 
 export async function getLearningJourneyReadModelStatus(token) {
-  const res = await fetchClient('/api/v3/learning-journey/admin/read-model-status', {
+  const res = await fetchClient(`${BASE_URL}/admin/read-model-status`, {
     headers: authHeaders(token),
   });
   return parseEnvelope(res);
@@ -114,7 +175,7 @@ export async function getLearningJourneyReadModelStatus(token) {
 export async function getLearningJourneyDataFreshness(token, semesterId) {
   const qs = new URLSearchParams();
   qs.set('semesterId', semesterId);
-  const res = await fetchClient(`/api/v3/learning-journey/admin/data-freshness?${qs.toString()}`, {
+  const res = await fetchClient(`${BASE_URL}/admin/data-freshness?${qs.toString()}`, {
     headers: authHeaders(token),
   });
   return parseEnvelope(res);
@@ -123,7 +184,7 @@ export async function getLearningJourneyDataFreshness(token, semesterId) {
 export async function getLearningJourneyGovernanceOverview(token, semesterId) {
   const qs = new URLSearchParams();
   qs.set('semesterId', semesterId);
-  const res = await fetchClient(`/api/v3/learning-journey/admin/governance-overview?${qs.toString()}`, {
+  const res = await fetchClient(`${BASE_URL}/admin/governance-overview?${qs.toString()}`, {
     headers: authHeaders(token),
   });
   return parseEnvelope(res);
@@ -133,7 +194,7 @@ export async function getLearningJourneyRecentJobs(token, semesterId, limit = 20
   const qs = new URLSearchParams();
   if (semesterId) qs.set('semesterId', semesterId);
   if (limit) qs.set('limit', String(limit));
-  const res = await fetchClient(`/api/v3/learning-journey/admin/jobs/recent?${qs.toString()}`, {
+  const res = await fetchClient(`${BASE_URL}/admin/jobs/recent?${qs.toString()}`, {
     headers: authHeaders(token),
   });
   return parseEnvelope(res);
@@ -142,14 +203,14 @@ export async function getLearningJourneyRecentJobs(token, semesterId, limit = 20
 export async function getLearningJourneyLegacyUsageAudit(token, days = 30) {
   const qs = new URLSearchParams();
   qs.set('days', String(days));
-  const res = await fetchClient(`/api/v3/learning-journey/admin/legacy-usage-audit?${qs.toString()}`, {
+  const res = await fetchClient(`${BASE_URL}/admin/legacy-usage-audit?${qs.toString()}`, {
     headers: authHeaders(token),
   });
   return parseEnvelope(res);
 }
 
 export async function postLearningJourneyRunDailyGovernance(token, semesterId) {
-  const res = await fetchClient('/api/v3/learning-journey/admin/jobs/run-daily-governance', {
+  const res = await fetchClient(`${BASE_URL}/admin/jobs/run-daily-governance`, {
     method: 'POST',
     headers: {
       ...authHeaders(token),
@@ -161,7 +222,7 @@ export async function postLearningJourneyRunDailyGovernance(token, semesterId) {
 }
 
 export async function postLearningJourneyReconcileSemester(token, semesterId) {
-  const res = await fetchClient('/api/v3/learning-journey/admin/jobs/reconcile-semester', {
+  const res = await fetchClient(`${BASE_URL}/admin/jobs/reconcile-semester`, {
     method: 'POST',
     headers: {
       ...authHeaders(token),
@@ -178,7 +239,7 @@ export async function postLearningJourneyReconcileSemester(token, semesterId) {
  */
 export async function getLearningJourneyEnglishTestSummaryV3(token, semesterId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/semesters/${encodeURIComponent(semesterId)}/english-test-summary`,
+    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/english-test-summary`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
@@ -186,7 +247,7 @@ export async function getLearningJourneyEnglishTestSummaryV3(token, semesterId) 
 
 export async function getLearningJourneyRiskStudents(token, semesterId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/semesters/${encodeURIComponent(semesterId)}/risk-students`,
+    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/risk-students`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
@@ -194,7 +255,7 @@ export async function getLearningJourneyRiskStudents(token, semesterId) {
 
 export async function getLearningJourneyEnglishTestStudentsCompare(token, semesterId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/semesters/${encodeURIComponent(semesterId)}/english-test-students/compare`,
+    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/english-test-students/compare`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
@@ -202,7 +263,7 @@ export async function getLearningJourneyEnglishTestStudentsCompare(token, semest
 
 export async function getLearningJourneyEnglishTestStudentDetailCompare(token, semesterId, studentId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/semesters/${encodeURIComponent(semesterId)}/english-test-students/${encodeURIComponent(studentId)}/compare`,
+    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/english-test-students/${encodeURIComponent(studentId)}/compare`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
@@ -210,14 +271,14 @@ export async function getLearningJourneyEnglishTestStudentDetailCompare(token, s
 
 export async function getLearningJourneyEnglishTestSummaryCompare(token, semesterId) {
   const res = await fetchClient(
-    `/api/v3/learning-journey/semesters/${encodeURIComponent(semesterId)}/english-test-summary/compare`,
+    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/english-test-summary/compare`,
     { headers: authHeaders(token) }
   );
   return parseEnvelope(res);
 }
 
 export async function postLearningJourneySync(token, body) {
-  const res = await fetchClient('/api/v3/learning-journey/admin/sync', {
+  const res = await fetchClient(`${BASE_URL}/admin/sync`, {
     method: 'POST',
     headers: {
       ...authHeaders(token),
@@ -231,7 +292,7 @@ export async function postLearningJourneySync(token, body) {
 export async function postLearningJourneyCourseImportDryRun(token, file) {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetchClient('/api/v3/learning-journey/admin/course-import/dry-run', {
+  const res = await fetchClient(`${BASE_URL}/admin/course-import/dry-run`, {
     method: 'POST',
     headers: authHeaders(token),
     body: formData,
@@ -242,7 +303,7 @@ export async function postLearningJourneyCourseImportDryRun(token, file) {
 export async function postLearningJourneyCourseImportApply(token, file) {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetchClient('/api/v3/learning-journey/admin/course-import/apply', {
+  const res = await fetchClient(`${BASE_URL}/admin/course-import/apply`, {
     method: 'POST',
     headers: authHeaders(token),
     body: formData,

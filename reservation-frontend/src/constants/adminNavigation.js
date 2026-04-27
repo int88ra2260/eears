@@ -122,8 +122,6 @@ export const ADMIN_NAV_SECTIONS = [
         path: '/admin/learning-journey',
         matchPrefixes: [
           '/admin/learning-journey',
-          '/admin/english-test-tracking',
-          '/admin/english-test-tracking-v2',
           '/admin/learning-journey-center',
         ],
         visibility: 'english',

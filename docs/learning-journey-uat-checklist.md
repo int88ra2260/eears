@@ -22,14 +22,14 @@
 | 2.2 學生查詢 - 不存在學生 | 輸入不存在或無資料的學號後查詢。 | 顯示清楚的無資料或查無學生訊息，不出現系統錯誤。 |  |  |
 | 2.3 學生查詢 - 必填檢核 | 不輸入學生或不選學期直接查詢。 | 顯示可理解的提示訊息，避免送出無效查詢或造成頁面錯誤。 |  |  |
 | 2.4 學生查詢 - 資料摘要 | 查詢一位資料完整學生。 | 可看到最佳成績、考試紀錄、活動參與、修課紀錄與資料品質摘要；資料缺漏時有明確提醒。 |  |  |
-| 3.1 學期總覽 - 載入 | 切換到「學期總覽」，輸入測試學期並載入。 | KPI、名冊人數、達標率、CEFR 分布、系所統計等區塊可正常顯示。 |  |  |
-| 3.2 學期總覽 - CEFR 分布 | 檢查 CEFR 分布圖表或列表。 | A1-C2 / 未分級等資料顯示合理，百分比或數量不明顯異常。 |  |  |
-| 3.3 學期總覽 - 系所統計 | 檢查各系所統計資料。 | 系所名稱、名冊人數、達標人數、達標率等欄位可讀且排序/顯示合理。 |  |  |
+| 3.1 學期總覽 - 載入 | 切換到「學期總覽」，輸入測試學期並載入。 | 顯示名冊人數與聽力、閱讀、口說、寫作四技能 B2+ KPI；不可顯示總達標率。 |  |  |
+| 3.2 學期總覽 - 年級統計 | 檢查年級統計區塊。 | 每個年級皆以該學期 active enrollment snapshot 為分母，分別顯示四技能 B2+ 人數與比例。 |  |  |
+| 3.3 學期總覽 - 系所統計 | 檢查各系所統計資料。 | 系所名稱、名冊人數與聽讀說寫四技能 B2+ 欄位可讀且排序/顯示合理；不可使用歷史資料補分母。 |  |  |
 | 3.4 學期總覽 - 風險學生 | 檢查風險學生區塊。 | 風險學生清單可載入；風險原因可理解；點選學生可進入學生詳情。若無資料，顯示合理空狀態。 |  |  |
 | 3.5 學期總覽 - 異常狀態 | 使用無資料學期或暫停相關 API 後重載。 | 顯示空狀態或錯誤提示，不造成整頁崩潰；其他可取得資料仍可顯示。 |  |  |
 | 4.1 學生名單 - 載入 | 切換到「學生名單」，輸入測試學期後載入。 | 顯示學生列表、總筆數、分頁資訊與資料來源提示。 |  |  |
 | 4.2 學生名單 - 搜尋 | 在學生名單輸入學號或姓名關鍵字搜尋。 | 列表依條件過濾，結果與查詢條件一致；無資料時顯示空狀態。 |  |  |
-| 4.3 學生名單 - 篩選 | 使用系所、達標狀態、CEFR 或其他可用篩選條件。 | 篩選後資料正確更新，篩選條件可清除或重新查詢。 |  |  |
+| 4.3 學生名單 - 篩選 | 使用系所、年級、技能與 B2+ 條件篩選。 | 篩選後資料正確更新；B2+ 條件必須以指定技能分開判斷，不可用總達標率。 |  |  |
 | 4.4 學生名單 - 分頁 | 切換下一頁、上一頁或調整頁數。 | 分頁正常運作，不重複或遺失資料；載入中狀態清楚。 |  |  |
 | 4.5 學生名單 - 進入詳情 | 點選任一學生列或詳情連結。 | 導向 `/admin/learning-journey/students/:studentId`，並顯示該學生詳情。 |  |  |
 | 5.1 學生詳情 - 基本資料 | 進入一位測試學生詳情頁。 | 顯示姓名、學號、系所、年級、學期等基本資訊；無錯置或亂碼。 |  |  |
@@ -37,6 +37,8 @@
 | 5.3 學生詳情 - 考試紀錄 | 檢查 BESTEP 或其他英檢 attempt 清單。 | 多筆考試可正常顯示，日期、測驗類型、分項分數與 CEFR 合理。 |  |  |
 | 5.4 學生詳情 - 學習歷程資料 | 檢查活動參與、修課紀錄、timeline 或其他歷程區塊。 | 各區塊資料可讀，時間順序合理，無資料時顯示合理空狀態。 |  |  |
 | 5.5 學生詳情 - 返回流程 | 從學生詳情返回學生名單或主頁。 | 可回到英語學習歷程中心，不導回 legacy 頁面。 |  |  |
+| 5.6 學生詳情 - Teacher 範圍 | 使用 teacher 帳號查詢學生詳情並帶入測試學期。 | 只能看到當學期 `classes.teacherName = 登入者姓名` 且位於 `class_memberships` 的學生；不可看到其他學生資料。 |  |  |
+| 5.7 學生詳情 - Teacher 學期限制 | 使用 teacher 帳號不帶 semesterId 或切換其他學期。 | 後端拒絕無學期查詢；資料只限當學期活動、修課、培力與英檢可見摘要。 |  |  |
 | 6.1 資料來源與診斷 - 權限可見 | 以 admin+ 帳號切換到「資料來源與診斷」。 | 可看到 read model 狀態、資料新鮮度、匯入歷程、資料品質或重算工具等管理資訊。 |  |  |
 | 6.2 資料來源與診斷 - 一般角色 | 以非授權角色登入並進入同頁。 | 診斷或工程導向資訊被隱藏、唯讀或顯示權限不足，不暴露高風險操作。 |  |  |
 | 6.3 資料新鮮度 | 在診斷區載入 data freshness。 | 各資料來源狀態顯示為 fresh / stale / empty / unknown 等可理解狀態，並有更新時間或說明。 |  |  |
@@ -53,10 +55,12 @@
 | 8.4 legacy route redirect - old students list | 直接輸入 `/admin/english-test-v2/students` 或 `/admin/english-test-tracking/students`。 | 自動 redirect 至 `/admin/learning-journey` 或學生名單所在入口，不顯示舊列表頁。 |  |  |
 | 8.5 legacy student detail bookmark | 直接輸入既有學生詳情書籤，例如 `/admin/english-test-v2/students/:studentId` 或保留的學生詳情路徑。 | 舊書籤仍可導向可用學生詳情或相容頁，不出現 404；新操作應導向 Learning Journey。 |  |  |
 | 8.6 legacy wildcard route | 直接輸入 `/admin/english-test-tracking/unknown-path` 或 `/admin/english-test-v2/unknown-path`。 | 自動 redirect 至 `/admin/learning-journey`，不顯示舊功能入口。 |  |  |
-| 9.1 UI 舊文案掃描 | 搜尋前端可見文案：`英檢長期追蹤`、`English Test Tracking`、`儀表板`、`英檢追蹤`。 | `reservation-frontend/src` 中無使用者可見舊文案殘留；route path / code identifier 可保留。 |  |  |
-| 9.2 linter 驗證 | 對本次修改或學習歷程相關前端檔案執行 lint/IDE diagnostics。 | 無新增 linter error；既有 warning 若存在需註記來源。 |  |  |
-| 9.3 build 驗證 | 在 `reservation-frontend` 執行 `npm run build`。 | build 成功；若有既有 warning，需記錄且確認非本次阻擋性錯誤。 |  |  |
-| 9.4 smoke test | build 後以瀏覽器開啟後台並重新執行主要路徑：登入、進入 Learning Journey、查學生、查總覽、開詳情。 | 無白畫面、無 console critical error、主要 API request 可正常回應或顯示可理解錯誤。 |  |  |
+| 9.1 Enrollment 匯入 | 以上傳固定格式在校生名單 Excel 進行 dry-run / apply。 | 第一個 sheet A-F 欄位正確映射；重複 studentId+studentName 只保留一筆；同學號不同姓名進 quarantine/warning。 |  |  |
+| 9.2 外部英檢匯入 | 以上傳固定格式英檢成績 Excel 進行 dry-run / apply。 | A-P 欄位正確映射；以 studentId+examDate+examType 去重；內容相同略過，內容不同進 quarantine，不靜默覆蓋。 |  |  |
+| 9.3 UI 舊文案掃描 | 搜尋前端可見文案：`英檢長期追蹤`、`English Test Tracking`、`Long-term tracking`。 | `reservation-frontend/src` 中無使用者可見舊文案殘留；route path / code identifier 可保留。 |  |  |
+| 9.4 linter 驗證 | 對本次修改或學習歷程相關前後端檔案執行 lint/IDE diagnostics。 | 無新增 linter error；既有 warning 若存在需註記來源。 |  |  |
+| 9.5 build 驗證 | 在 `reservation-frontend` 執行 `npm run build`。 | build 成功；若有既有 warning，需記錄且確認非本次阻擋性錯誤。 |  |  |
+| 9.6 smoke test | build 後以瀏覽器開啟後台並重新執行主要路徑：登入、進入 Learning Journey、查學生、查總覽、開詳情。 | 無白畫面、無 console critical error、主要 API request 可正常回應或顯示可理解錯誤。 |  |  |
 
 ## 驗收結論
 

@@ -44,6 +44,7 @@ const {
   runReconcileSemesterJob
 } = require('../services/learningJourney/learningJourneyJobService');
 const { getLegacyUsageAuditReport } = require('../services/learningJourney/legacyUsageAuditService');
+const learningJourneyFinal = require('../services/learningJourney/learningJourneyFinalService');
 
 function envelope(req, data, warnings = [], debug = null) {
   const fallbackMeta = debug && Object.prototype.hasOwnProperty.call(debug, 'fallbackUsed')
@@ -418,6 +419,188 @@ async function getSemesterDashboard(req, res) {
   }
 }
 
+async function getFinalSemestersHandler(req, res) {
+  try {
+    const data = await learningJourneyFinal.listSemesters();
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
+async function getFinalSemesterOverviewHandler(req, res) {
+  try {
+    const semesterId = req.params.id || req.params.semesterId ? String(req.params.id || req.params.semesterId).trim() : '';
+    if (!semesterId) {
+      return res.status(400).json({ error: 'semesterId 為必填', requestId: req.requestId });
+    }
+    const data = await learningJourneyFinal.getSemesterOverview(semesterId, { user: req.user });
+    if (data.error) {
+      return res.status(400).json({ error: data.error, requestId: req.requestId });
+    }
+    return res.json(envelope(req, data, (data.warnings || []).map((w) => w.message || w.code), { mode: 'learning_journey_final_overview' }));
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
+async function getFinalImportHistoriesHandler(req, res) {
+  try {
+    const semesterId = req.params.id || req.params.semesterId ? String(req.params.id || req.params.semesterId).trim() : '';
+    if (!semesterId) {
+      return res.status(400).json({ error: 'semesterId 為必填', requestId: req.requestId });
+    }
+    const data = await learningJourneyFinal.getImportHistories(semesterId, {
+      limit: req.query.limit
+    });
+    if (data.error) {
+      return res.status(400).json({ error: data.error, requestId: req.requestId });
+    }
+    return res.json(envelope(req, data, (data.warnings || []).map((w) => w.message || w.code), { mode: 'learning_journey_final_import_histories' }));
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
+async function getFinalSemesterStudentsHandler(req, res) {
+  try {
+    const semesterId = req.params.id || req.params.semesterId ? String(req.params.id || req.params.semesterId).trim() : '';
+    if (!semesterId) {
+      return res.status(400).json({ error: 'semesterId 為必填', requestId: req.requestId });
+    }
+    const data = await learningJourneyFinal.getSemesterStudents(semesterId, {
+      user: req.user,
+      keyword: req.query.keyword,
+      department: req.query.department,
+      grade: req.query.grade,
+      page: req.query.page,
+      limit: req.query.limit,
+      offset: req.query.offset,
+      skill: req.query.skill,
+      b2Plus: req.query.b2Plus
+    });
+    if (data.error) {
+      return res.status(400).json({ error: data.error, requestId: req.requestId });
+    }
+    return res.json(envelope(req, data, (data.warnings || []).map((w) => w.message || w.code), { mode: 'learning_journey_final_students' }));
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
+async function postFinalRebuildHandler(req, res) {
+  try {
+    const semesterId = String((req.body && req.body.semesterId) || req.query.semesterId || '').trim();
+    if (!semesterId) {
+      return res.status(400).json({ error: 'semesterId 為必填', requestId: req.requestId });
+    }
+    const data = await learningJourneyFinal.rebuildReadModel(semesterId);
+    if (data.error) {
+      return res.status(400).json({ error: data.error, requestId: req.requestId });
+    }
+    return res.json(envelope(req, data, [], { mode: 'learning_journey_final_rebuild' }));
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
+async function getFinalStudentDetailHandler(req, res) {
+  try {
+    const studentId = normalizeStudentId(req.params.studentId);
+    if (!studentId) {
+      return res.status(400).json({ error: 'studentId 為必填', requestId: req.requestId });
+    }
+    const data = await learningJourneyFinal.getStudentDetail(studentId, {
+      user: req.user,
+      semesterId: req.query.semesterId
+    });
+    if (data.error) {
+      return res.status(data.statusCode || 400).json({ error: data.error, requestId: req.requestId });
+    }
+    return res.json(envelope(req, data, (data.warnings || []).map((w) => w.message || w.code), { mode: 'learning_journey_final_student_detail' }));
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
+async function postFinalEnrollmentImportDryRun(req, res) {
+  try {
+    const semesterId = String((req.body && req.body.semesterId) || req.query.semesterId || '').trim();
+    if (!semesterId) {
+      return res.status(400).json({ error: 'semesterId 為必填', requestId: req.requestId });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: '請上傳 Excel 檔案', requestId: req.requestId });
+    }
+    const data = await learningJourneyFinal.importEnrollmentSnapshot({
+      semesterId,
+      fileBuffer: req.file.buffer,
+      sourceFile: req.file.originalname,
+      dryRun: true
+    });
+    if (data.error) return res.status(400).json({ error: data.error, requestId: req.requestId });
+    return res.json(envelope(req, data, (data.warnings || []).map((w) => w.message || w.code), { mode: 'learning_journey_final_enrollment_import_dry_run' }));
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
+async function postFinalEnrollmentImportApply(req, res) {
+  try {
+    const semesterId = String((req.body && req.body.semesterId) || req.query.semesterId || '').trim();
+    if (!semesterId) {
+      return res.status(400).json({ error: 'semesterId 為必填', requestId: req.requestId });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: '請上傳 Excel 檔案', requestId: req.requestId });
+    }
+    const data = await learningJourneyFinal.importEnrollmentSnapshot({
+      semesterId,
+      fileBuffer: req.file.buffer,
+      sourceFile: req.file.originalname,
+      dryRun: false
+    });
+    if (data.error) return res.status(400).json({ error: data.error, requestId: req.requestId });
+    return res.json(envelope(req, data, (data.warnings || []).map((w) => w.message || w.code), { mode: 'learning_journey_final_enrollment_import_apply' }));
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
+async function postFinalExternalExamImportDryRun(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: '請上傳 Excel 檔案', requestId: req.requestId });
+    }
+    const data = await learningJourneyFinal.importExternalExamAttempts({
+      fileBuffer: req.file.buffer,
+      sourceFile: req.file.originalname,
+      dryRun: true
+    });
+    if (data.error) return res.status(400).json({ error: data.error, requestId: req.requestId });
+    return res.json(envelope(req, data, (data.warnings || []).map((w) => w.message || w.code), { mode: 'learning_journey_final_exam_import_dry_run' }));
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
+async function postFinalExternalExamImportApply(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: '請上傳 Excel 檔案', requestId: req.requestId });
+    }
+    const data = await learningJourneyFinal.importExternalExamAttempts({
+      fileBuffer: req.file.buffer,
+      sourceFile: req.file.originalname,
+      dryRun: false
+    });
+    if (data.error) return res.status(400).json({ error: data.error, requestId: req.requestId });
+    return res.json(envelope(req, data, (data.warnings || []).map((w) => w.message || w.code), { mode: 'learning_journey_final_exam_import_apply' }));
+  } catch (error) {
+    return res.status(500).json({ error: error.message, requestId: req.requestId });
+  }
+}
+
 async function getEnglishTestSummaryV3Handler(req, res) {
   try {
     const semesterId = req.params.semesterId ? String(req.params.semesterId).trim() : '';
@@ -721,6 +904,16 @@ module.exports = {
   getStudentReportHandler,
   getSemesterMetrics,
   getSemesterDashboard,
+  getFinalSemestersHandler,
+  getFinalSemesterOverviewHandler,
+  getFinalImportHistoriesHandler,
+  getFinalSemesterStudentsHandler,
+  getFinalStudentDetailHandler,
+  postFinalRebuildHandler,
+  postFinalEnrollmentImportDryRun,
+  postFinalEnrollmentImportApply,
+  postFinalExternalExamImportDryRun,
+  postFinalExternalExamImportApply,
   getReconciliation,
   getReadinessHandler,
   getReadModelStatusHandler,

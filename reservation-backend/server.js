@@ -94,6 +94,7 @@ app.use('/api', learningPartnerRouter);
 app.use('/api/admin/bestep', bestepRouter);
 app.use('/api/english-tests', englishTestTrackingRouter);
 app.use('/api/admin/english-tests', englishTestsRouter);
+app.use('/api/admin/learning-journey', learningJourneyRouter);
 app.use('/api/v3/learning-journey', learningJourneyRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api', analyticsRouter);
