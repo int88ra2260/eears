@@ -22,7 +22,7 @@ const BestepAttendance = require('./BestepAttendance');
 const BestepExamScore = require('./BestepExamScore');
 const BestepExamSession = require('./BestepExamSession');
 const BestepTeamRanking = require('./BestepTeamRanking');
-// 英檢長期追蹤 (English Test Tracking)
+// 英語學習歷程中心 legacy 英檢資料（Learning Journey legacy）
 const EtSemester = require('./EtSemester');
 const EtStudentMaster = require('./EtStudentMaster');
 const EtCefrLevel = require('./EtCefrLevel');
@@ -151,7 +151,7 @@ LearningPartnerTeam.hasMany(BestepTeamRanking, {
   as: 'rankings'
 });
 
-// 英檢長期追蹤關聯
+// 英語學習歷程中心 legacy 英檢資料關聯
 EtSemester.hasMany(EtEnrollmentSnapshot, { foreignKey: 'semesterId' });
 EtEnrollmentSnapshot.belongsTo(EtSemester, { foreignKey: 'semesterId' });
 EtSemester.hasMany(EtSemesterStudentBestSkill, { foreignKey: 'semesterId' });

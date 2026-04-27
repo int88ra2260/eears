@@ -1,6 +1,6 @@
 # Learning Journey 正式整合路線圖
 
-本文件描述 EEARS「英語學習歷程中心（Learning Journey v3）」與既有培力／英檢長期追蹤／BESTEP 模組之**資料真實來源**、**收斂順序**與**禁止事項**，供 Phase 5-7 以後之工程與營運對帳依循。
+本文件描述 EEARS「英語學習歷程中心（Learning Journey）」與既有培力／BESTEP／legacy 英檢資料流程之**資料真實來源**、**收斂順序**與**禁止事項**，供 Phase 5-7 以後之工程與營運對帳依循。
 
 ---
 
@@ -9,10 +9,10 @@
 | 模組 | 路徑／API 特徵 | 角色 |
 |------|----------------|------|
 | 培力英檢管理 | `/admin/english-test`、`/api/english-test/...` | 培力報名審核、匯出、團報等 **營運主流程** |
-| 英檢長期追蹤 Legacy | `/admin/english-test-tracking/legacy`、`/api/english-tests/...` | 名冊／成績 **匯入與重算**（寫入 `et_*`） |
-| 英檢長期追蹤 V2 | `/admin/english-test-tracking`、`/api/admin/english-tests/...` | **儀表與學生鑽研**（讀 `et_*`） |
+| Learning Journey legacy 匯入流程 | `/admin/english-test-tracking/legacy`、`/api/english-tests/...` | 名冊／成績 **匯入與重算**（寫入 `et_*`） |
+| Learning Journey 相容讀取路徑 | `/admin/english-test-tracking`、`/api/admin/english-tests/...` | 舊書籤導向與相容 API（讀 `et_*`） |
 | BESTEP 匯入 | `/admin/english-test/import`、`/api/admin/bestep/...` | BESTEP 出席／成績 **匯入**（寫入 `bestep_*`） |
-| Learning Journey v3 | `/admin/learning-journey`、`/api/v3/learning-journey/...` | **唯讀聚合**、timeline、**資料對帳**（`aggregateReadModelService`、`reconciliationService`） |
+| Learning Journey | `/admin/learning-journey`、`/api/v3/learning-journey/...` | **唯讀聚合**、timeline、**資料對帳**（`aggregateReadModelService`、`reconciliationService`） |
 
 ---
 
@@ -21,15 +21,15 @@
 ### Write source（權威寫入）
 
 - **培力報名**：`english_test_registrations`（使用者／審核流程寫入）。
-- **長期追蹤名冊／成績**：`et_enrollment_snapshots`、`et_exam_attempts`、`et_exam_attempt_skill_scores`、`et_semester_student_best_skills` 等（Legacy 匯入 API 寫入）。
+- **Learning Journey legacy 名冊／成績**：`et_enrollment_snapshots`、`et_exam_attempts`、`et_exam_attempt_skill_scores`、`et_semester_student_best_skills` 等（legacy 匯入 API 寫入）。
 - **BESTEP**：`bestep_attendance`、`bestep_exam_scores` 等（BESTEP 匯入寫入）。
 - **活動預約**：`reservations` + `events`（預約／簽到流程寫入）。
 - **LJS 本體（若已啟用 migration／同步）**：`students`、`exam_registrations`、`exam_attempts`、`activity_participations`、`student_semester_profiles` 等——**僅在明確同步作業寫入**，現階段多為 **read model／過渡**。
 
 ### Read model（聚合／快取）
 
-- **V2 儀表**：讀 `et_*` + 既有 service，**不作為新寫入來源**。
-- **v3 聚合 API**：讀多表拼出單一視圖；**不取代** `et_*` 寫入。
+- **相容摘要 API**：讀 `et_*` + 既有 service，**不作為新寫入來源**。
+- **Learning Journey 聚合 API**：讀多表拼出單一視圖；**不取代** `et_*` 寫入。
 - **`student_semester_profiles` 等**：設計上為 LJS **快取／彙總**，與 `et_enrollment_snapshots` 需 **對帳** 後再信賴為行政唯一口徑。
 
 ### Transitional（過渡）
@@ -46,7 +46,7 @@
 
 2. **第二階段：資料對帳**（進行中）  
    - `GET /api/v3/learning-journey/admin/reconciliation?semesterId=`  
-   - 名冊、報名、BESTEP、長期追蹤、活動五區塊 **source vs aggregate** 差異清單。
+- 名冊、報名、BESTEP、legacy 英檢資料、活動五區塊 **source vs aggregate** 差異清單。
 
 3. **第三階段：匯入同步**（設計後實作）  
    - 在**不改變既有匯入入口**前提下，增加 **background 或 post-import hook** 將資料寫入 LJS 表（需 idempotent、可重跑）。
@@ -70,14 +70,14 @@
 
 ## E. 對帳語意備註（實作對齊）
 
-- **長期追蹤 D 區**：`et_exam_attempts` 無學期欄位，故「來源側」取 **本學期名冊內** 且至少一筆 attempt 之學生集合；「聚合側」為 `exam_attempts` 中 `semester_id` 相符且 `source_type` 為 **`LEGACY_ET` 或 `MANUAL`**（目前 ENUM 無 `ET_TRACKING`，若未來新增應併入對帳）。
+- **Learning Journey legacy 英檢 D 區**：`et_exam_attempts` 無學期欄位，故「來源側」取 **本學期名冊內** 且至少一筆 attempt 之學生集合；「聚合側」為 `exam_attempts` 中 `semester_id` 相符且 `source_type` 為 **`LEGACY_ET` 或 `MANUAL`**（目前 ENUM 無 `ET_TRACKING`，若未來新增應併入對帳）。
 - **活動 E 區**：來源為 `reservations` + `events` 經 `semesters.code` 對學期；聚合為 `activity_participations.semester_id`。若活動未填 `events.semesterId`，對帳可能偏少，屬 **資料填寫問題** 而非 API 錯誤。
 
 ---
 
 ## G. Phase 5-8：第一批同步（可重跑 Job／API／CLI）
 
-本階段在**不改 V2 dashboard 讀源**、**不下線 legacy**、**不刪 `et_*`**、**不把 `exam_attempts` 當唯一真實來源**、**不做 destructive migration** 之前提下，將既有資料**冪等**寫入 LJS read model，供對帳與 v3 聚合使用。
+本階段在**不改相容摘要讀源**、**不下線 legacy**、**不刪 `et_*`**、**不把 `exam_attempts` 當唯一真實來源**、**不做 destructive migration** 之前提下，將既有資料**冪等**寫入 LJS read model，供對帳與 Learning Journey 聚合使用。
 
 ### G.1 端點與契約
 
@@ -137,21 +137,21 @@
 
 ---
 
-## H. Phase 5-9：V2 read model 切換準備（feature flag 與指標比較）
+## H. Phase 5-9：Learning Journey read model 切換準備（feature flag 與指標比較）
 
-本階段**不**改 `/admin/english-test-tracking` 讀源、**不**刪除 `/api/admin/english-tests`、**不**改 V2 儀表 UI、**不**做 migration、**不**改舊匯入流程；僅新增可比對之 v3 summary 與 compare API，供管理端評估差異。
+本階段**不**改 `/admin/english-test-tracking` 相容導向、**不**刪除 `/api/admin/english-tests`、**不**做 migration、**不**改舊匯入流程；僅新增可比對之 Learning Journey summary 與 compare API，供管理端評估差異。
 
 ### H.1 環境變數（預設關閉）
 
 - `ENABLE_LEARNING_JOURNEY_V3_READ_MODEL`：預設 **`false`**（未設或值非 `true` 皆視為關閉）。
-- 用途：標記「是否允許後續階段將 V2 儀表／API **正式**改讀 v3 read model」之營運開關；**compare／v3 summary API 仍可在 flag 為 false 時呼叫**，以利先比對再決策。
+- 用途：標記「是否允許後續階段將相容 API **正式**改讀 Learning Journey read model」之營運開關；**compare／Learning Journey summary API 仍可在 flag 為 false 時呼叫**，以利先比對再決策。
 
 ### H.2 API
 
 | 方法 | 路徑 | 說明 |
 |------|------|------|
-| GET | `/api/v3/learning-journey/semesters/:semesterId/english-test-summary` | LJS：`student_semester_profiles`（`is_rostered`）+ `exam_attempts`（`valid`）+ `exam_attempt_skill_scores` 計算與 V2 對齊之摘要欄位；`source: learning_journey_v3`；不足時 `dataQuality.warnings`，不應 500。 |
-| GET | `/api/v3/learning-journey/semesters/:semesterId/english-test-summary/compare` | 並列 `englishTestReportService.getSemesterSummary`（legacy）與上列 v3 summary，含 `diff`（v3 − legacy）與 `status`：`ok`／`warning`／`error`。 |
+| GET | `/api/v3/learning-journey/semesters/:semesterId/english-test-summary` | LJS：`student_semester_profiles`（`is_rostered`）+ `exam_attempts`（`valid`）+ `exam_attempt_skill_scores` 計算與相容摘要對齊之欄位；`source: learning_journey_v3`；不足時 `dataQuality.warnings`，不應 500。 |
+| GET | `/api/v3/learning-journey/semesters/:semesterId/english-test-summary/compare` | 並列 `englishTestReportService.getSemesterSummary`（legacy）與上列 Learning Journey summary，含 `diff`（Learning Journey − legacy）與 `status`：`ok`／`warning`／`error`。 |
 
 ### H.3 切換門檻（建議）
 
@@ -159,19 +159,19 @@
 
 ### H.4 Rollback 策略
 
-- **未改 V2 讀源前**：無需 rollback；關閉 feature flag 即可恢復「僅以 legacy 為權威認知」之營運狀態。
-- **若未來已改讀 v3**：rollback 為將讀源改回 `et_*`／既有 service，並將 flag 設回 `false`；已寫入 LJS 表之資料不以此 flag 回溯刪除。
+- **未改相容 API 讀源前**：無需 rollback；關閉 feature flag 即可恢復「僅以 legacy 為權威認知」之營運狀態。
+- **若未來已改讀 Learning Journey**：rollback 為將讀源改回 `et_*`／既有 service，並將 flag 設回 `false`；已寫入 LJS 表之資料不以此 flag 回溯刪除。
 
 ### H.5 前端
 
-- Learning Journey Hub 新增「**V2 指標比較**」：呼叫 compare API，顯示 legacy／v3／diff；差異極小時提示「可進入試切換評估」。
+- Learning Journey Hub 新增「**資料一致性比對**」：呼叫 compare API，顯示 legacy／Learning Journey／diff；差異極小時提示「可進入試切換評估」。
 
-### H.6 Phase 5-10：V2 Summary KPI 試切換（僅 summary）
+### H.6 Phase 5-10：Learning Journey Summary KPI 試切換（僅 summary）
 
-- **`GET /api/admin/english-tests/semesters/:id/summary`**：`ENABLE_LEARNING_JOURNEY_V3_READ_MODEL=true` 時優先回傳 LJS v3 計算之 KPI，並附 `source`、`meta.debug.readModel`；`false` 時仍走 legacy，並標示 `legacy_et_v2`。
-- **Fallback**：v3 失敗時自動改回 legacy，`source`／`readModel` 為 `legacy_et_v2_fallback`，`warnings` 含固定英文提示。
-- **差異提醒**：flag 為 true 且 v3 成功時，另載入 legacy 比對；若名冊人數差 &gt;0、有成績／達標人數差 &gt;5、或達成率差 &gt;0.03，於 `warnings` 附加提醒（不阻擋回應）。
-- **儀表板**：`/admin/english-test-tracking`（EnglishTestDashboardPage）摘要區顯示小型來源 badge；學生列表、詳情、匯入等 API 本階段不改。
+- **`GET /api/admin/english-tests/semesters/:id/summary`**：`ENABLE_LEARNING_JOURNEY_V3_READ_MODEL=true` 時優先回傳 Learning Journey 計算之 KPI，並附 `source`、`meta.debug.readModel`；`false` 時仍走 legacy，並標示 `legacy_et_v2`。
+- **Fallback**：Learning Journey 失敗時自動改回 legacy，`source`／`readModel` 為 `legacy_et_v2_fallback`，`warnings` 含固定英文提示。
+- **差異提醒**：flag 為 true 且 Learning Journey 成功時，另載入 legacy 比對；若名冊人數差 &gt;0、有成績／達標人數差 &gt;5、或達成率差 &gt;0.03，於 `warnings` 附加提醒（不阻擋回應）。
+- **英語學習歷程中心**：`/admin/learning-journey` 顯示 KPI、CEFR、學生名單與進階資料來源診斷；舊 `/admin/english-test-tracking` 僅保留 redirect。
 
 ### H.7 Phase 5-11：學生列表 read model 對照與試切換預備
 
@@ -252,8 +252,8 @@
 - 新增 read model 狀態 API：`GET /api/v3/learning-journey/admin/read-model-status`
   - 回傳 flag、`currentReadModel`、受影響 API、fallback 狀態與 warnings。
 - Learning Journey Hub 新增「目前 Read Model 狀態」區塊：
-  - 顯示 flag 是否開啟、目前 V2 讀源、fallback、受影響 API。
-- V2 dashboard 來源可見性：
+  - 顯示 flag 是否開啟、目前相容讀源、fallback、受影響 API。
+- 相容摘要來源可見性：
   - 保持 summary badge；
   - students list / student detail 若 response 帶 `source`，顯示簡單來源提示。
 - 安全限制維持：
@@ -266,17 +266,17 @@
 
 ## I. Phase 6：正式產品化與收斂（進行中）
 
-- **Phase 6-1**：V2 compatibility API 預設讀 v3（僅明確 `false` 時 rollback 到 legacy）。
-- **Phase 6-2**：legacy tracking 路由/服務標記 `@deprecated`，dev mode 顯示警告。
+- **Phase 6-1**：compatibility API 預設讀 Learning Journey read model（僅明確 `false` 時 rollback 到 legacy）。
+- **Phase 6-2**：legacy Learning Journey 路由/服務標記 `@deprecated`，dev mode 顯示警告。
 - **Phase 6-3**：維持 `/api/admin/english-tests/*` 為 compatibility layer，並在 controller 標註遷移 TODO；新增 `docs/api-migration-plan.md`。
-- **Phase 6-4**：`/admin/learning-journey` 升級為正式 Dashboard 視圖（KPI、分布、風險區塊）。
+- **Phase 6-4**：`/admin/learning-journey` 升級為正式總覽視圖（KPI、分布、風險區塊）。
 - **Phase 6-5**：新增 `GET /api/v3/learning-journey/semesters/:semesterId/risk-students`。
 - **Phase 6-6**：新增 `docs/data-source-of-truth.md`，明確 `exam_attempts` 為 canonical、`et_*` 為 legacy/deprecated。
 - **Phase 6-7**：新增 learning-journey latency log、v3/legacy 使用比例與 fallback 次數觀測 log。
 - **Phase 6-8**：上線前硬化與防呆：
   - 啟動時檢查 canonical tables 缺失（不 crash production）
   - 新增 `data-freshness` API 與 Hub 可視化
-  - V2 dashboard 在 v3 + stale/fallback/dataQuality warning 時顯示防誤判提示
+  - Learning Journey 總覽在 stale/fallback/dataQuality warning 時顯示防誤判提示
   - 文件補齊預設 v3 後檢查與判讀規則
 - **Phase 6-9**：營運化（Operationalization）：
   - Hub 新增 Operation Mode（隱藏技術細節）與 Advanced Mode（工程/管理）
@@ -305,7 +305,7 @@
 | 2026-04-24 | Phase 5-13：readiness gate API、Hub「切換準備度」、門檻與 rollback 說明（§H.9） |
 | 2026-04-24 | Phase 5-14：UAT 操作手冊、readiness CLI、spot check 與不可直接正式切換規範（§H.10） |
 | 2026-04-24 | Phase 5-15：read-model-status API、Hub 狀態顯示、V2 students/detail 來源提示、觀測紀錄模板（§H.11） |
-| 2026-04-24 | Phase 6（6-1~6-7）第一版：預設讀 v3、deprecated 標記、risk API、dashboard 升級、觀測 log、資料來源文件（§I） |
-| 2026-04-27 | Phase 6-8：啟動 canonical table 檢查、data-freshness API/Hub、V2 防誤判提示、文件更新（§I） |
+| 2026-04-24 | Phase 6（6-1~6-7）第一版：預設讀 Learning Journey read model、deprecated 標記、risk API、總覽升級、觀測 log、資料來源文件（§I） |
+| 2026-04-27 | Phase 6-8：啟動 canonical table 檢查、data-freshness API/Hub、Learning Journey 防誤判提示、文件更新（§I） |
 | 2026-04-27 | Phase 6-9：Operation/Advanced 模式、RBAC 限制、防誤操作提示、行政操作手冊、sync audit log（§I） |
 | 2026-04-27 | Phase 6-10：go-live checklist、admin handoff、technical handoff、post-launch monitoring（§I） |

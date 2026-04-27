@@ -43,7 +43,7 @@ export function isNavItemVisible(visibility, c) {
 }
 
 /**
- * Worker：舊版僅顯示 Dashboard，側欄只保留「營運總覽」。
+ * Worker：舊版僅顯示總覽，側欄只保留「營運總覽」。
  * @param {AdminNavContext} c
  */
 export function isWorkerRestrictedMenu(c) {
@@ -276,12 +276,12 @@ export const ADMIN_NAV_SECTIONS = [
       },
       {
         id: 'analytics-teacher-dash',
-        label: '教師儀表板',
+        label: '教師總覽',
         path: '/admin/teachers/dashboard',
         matchPrefixes: ['/admin/teachers/dashboard'],
         visibility: 'adminOnly',
-        pageTitle: '教師儀表板',
-        breadcrumbLabel: '教師儀表板',
+        pageTitle: '教師總覽',
+        breadcrumbLabel: '教師總覽',
       },
       {
         id: 'analytics-teacher-impact',

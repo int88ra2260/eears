@@ -49,7 +49,7 @@ P6 第一版設計驗收：
 - [ ] 活動預約/取消仍維持活動開始前 2 小時規則。
 - [ ] BESTEP 報名/審核仍正常。
 - [ ] BESTEP 成績/出席匯入仍正常。
-- [ ] 英檢追蹤 dashboard 仍正常。
+- [ ] 英語學習歷程中心總覽仍正常。
 - [ ] 修課匯入 dry-run/apply 仍正常。
 - [ ] 學生 Learning Journey 頁仍正常。
 - [ ] JSON/HTML report 仍正常。

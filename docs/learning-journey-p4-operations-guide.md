@@ -1,6 +1,6 @@
 # Learning Journey P4 上線操作文件
 
-本文件提供行政與技術人員在 Learning Journey 儀表板與治理工具上線前後的操作流程。
+本文件提供行政與技術人員在 Learning Journey 總覽與治理工具上線前後的操作流程。
 
 ## 1. 每次上線前建議流程
 
@@ -12,7 +12,7 @@
    - 修課紀錄
 2. 進入 `/admin/learning-journey`
 3. 輸入學期代碼，例如 `114-1`
-4. 執行「正式版」dashboard
+4. 執行「正式版」總覽
 5. 切到「管理模式」
 6. 執行：
    - Read Model 狀態
@@ -31,7 +31,7 @@ API：`GET /api/v3/learning-journey/admin/governance-overview?semesterId=...`
 
 重點區塊：
 
-- `dashboard`：學期層級 KPI。
+- `dashboard`：學期層級 KPI（API 欄位名保留）。
 - `classOverview`：依系所 / 年級彙整的名冊人數。
 - `risk`：風險學生摘要與前段名單。
 - `freshness`：canonical/read model 表的新鮮度。
@@ -85,7 +85,7 @@ API：`GET /api/v3/learning-journey/admin/governance-overview?semesterId=...`
 
 ## 5. 回復策略
 
-- 若 dashboard 或學生頁資料異常，先關閉或避免使用 v3 作正式判讀，回到 legacy 英檢追蹤頁。
+- 若總覽或學生頁資料異常，先關閉或避免使用 Learning Journey read model 作正式判讀，改以 legacy 相容 API 與原始來源進行維運查詢。
 - 若只是資料 stale，重新執行同步與對帳。
 - 若匯入錯誤，修正來源 Excel 後重新 dry run / apply。
 - 若 report 產生失敗，使用學生頁畫面與 JSON report 作臨時驗收資料，並記錄 Request-ID。

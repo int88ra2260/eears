@@ -117,7 +117,7 @@
 
 - 後端治理摘要 API：
   - `GET /api/v3/learning-journey/admin/governance-overview?semesterId=114-1`
-  - 彙整 dashboard、系級/年級總覽、風險學生、data freshness、reconciliation、匯入批次、quarantine、ET import history、course import 摘要。
+  - 彙整總覽、系級/年級總覽、風險學生、data freshness、reconciliation、匯入批次、quarantine、ET import history、course import 摘要。
 - Data freshness 已納入 `course_enrollments`。
 - 前端 Hub 新增「P4 上線治理總覽」區塊。
 - 正式上線 UAT 報告：
@@ -131,7 +131,7 @@
 
 - 前端導覽已將 `/admin/learning-journey` 標示為每日維運主入口。
 - `/admin/english-test-v2`、`/admin/surveys`、`/admin/survey-settings` 已從側欄隱藏但保留直接 route fallback。
-- `/admin/english-test-tracking` 保留為「V2 維運」，legacy tracking 頁只供 fallback。
+- `/admin/english-test-tracking` 保留為舊書籤相容導向，legacy 頁只供 fallback。
 - `/api/english-tests/*` 與舊 `/api/surveys/*` 相容路徑已加 deprecation headers。
 - Deprecated route/API 文件：
   - `docs/legacy-route-api-deprecation.md`

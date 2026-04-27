@@ -1,5 +1,5 @@
 /**
- * 執行英檢長期追蹤 migration（若專案未使用 sequelize-cli）
+ * 執行英語學習歷程中心 legacy 英檢資料 migration（若專案未使用 sequelize-cli）
  * node scripts/run-english-test-tracking-migration.js [down]
  */
 require('dotenv').config();

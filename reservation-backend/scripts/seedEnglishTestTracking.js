@@ -1,5 +1,5 @@
 /**
- * 英檢長期追蹤種子資料（可 dry-run）
+ * 英語學習歷程中心 legacy 英檢資料種子資料（可 dry-run）
  * 使用方式：node scripts/seedEnglishTestTracking.js [--dry-run] [--small]
  * --dry-run: 只輸出將執行的動作，不寫入 DB
  * --small: 每學期約 50 人、每生 1~3 筆 attempt（預設為 200 人、1~5 筆）

@@ -1,5 +1,5 @@
 /**
- * 英檢長期追蹤模組設定（從 .env 讀取，有預設值）
+ * 英語學習歷程中心 legacy 英檢資料設定（從 .env 讀取，有預設值）
  */
 const enabled = process.env.ENABLE_ENGLISH_TEST_TRACKING !== 'false';
 const allowMixedTestTypeCompare = process.env.ENGLISH_TEST_TRACKING_ALLOW_MIXED_TESTTYPE_COMPARE === 'true';

@@ -110,14 +110,14 @@ exit code：
 1. 將環境變數改回：
    - `ENABLE_LEARNING_JOURNEY_V3_READ_MODEL=false`
 2. 重啟後端服務。  
-3. 再次檢查 `/admin/english-test-tracking` 與 API 輸出 `source` 是否回到 legacy。  
+3. 再次檢查 `/admin/learning-journey` 與相容 API 輸出 `source` 是否回到 legacy。  
 4. 記錄 rollback 時間、操作者、原因。  
 
 ---
 
 ## 7) 切換後必檢頁面與重點
 
-1. `/admin/english-test-tracking`
+1. `/admin/learning-journey`
    - 頁面可載入
    - summary 顯示合理
 2. summary KPI
@@ -154,7 +154,7 @@ exit code：
 | summary compare 符合門檻 |  |  |  |
 | students compare 符合門檻 |  |  |  |
 | detail sample compare 無 critical diff |  |  |  |
-| 開啟 flag 後 `/admin/english-test-tracking` 正常 |  |  |  |
+| 開啟 flag 後 `/admin/learning-journey` 正常 |  |  |  |
 | 開啟 flag 後 students list 正常 |  |  |  |
 | 開啟 flag 後 student detail 正常 |  |  |  |
 | `/admin/learning-journey` 各區塊正常 |  |  |  |

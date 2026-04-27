@@ -4,7 +4,7 @@
 
 ## 1. 角色與權限
 
-- Admin+：可查看 Learning Journey dashboard、governance overview、readiness、reconciliation、recent jobs。
+- Admin+：可查看 Learning Journey 總覽、governance overview、readiness、reconciliation、recent jobs。
 - Super admin：可執行 sync、course import apply、手動觸發 daily governance / reconciliation jobs。
 - 一般行政/教師：依系統權限查看被授權的活動、學生或報表。
 
@@ -149,7 +149,7 @@ GET /api/v3/learning-journey/admin/legacy-usage-audit?days=30
 
 ## 8. 回滾策略
 
-- 若 Learning Journey v3 read model 異常，可暫時避免用其作正式判讀，回到 V2 維運頁查詢。
+- 若 Learning Journey read model 異常，可暫時避免用其作正式判讀，改以 legacy 相容 API 與原始來源進行維運查詢。
 - 不刪除 legacy tables，不做 destructive rollback。
 - 若自動 job 失敗，不自動切換 feature flag。
 - 若 canonical-required 阻擋錯誤，先確認學期門檻與資料來源，再決定是否調整環境變數。

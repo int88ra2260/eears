@@ -25,14 +25,14 @@ const markDeprecatedEnglishTracking = legacyDeprecationHeaders({
 
 /**
  * @deprecated
- * Will be removed after Learning Journey v3 fully replaces legacy tracking.
+ * Will be removed after Learning Journey fully replaces legacy English-test data flows.
  */
 if (config.enabled) {
   if (process.env.NODE_ENV !== 'production') {
-    console.warn('Legacy English Test Tracking is deprecated. Use Learning Journey v3.');
+    console.warn('Legacy Learning Journey English-test routes are deprecated. Use Learning Journey APIs.');
   }
   router.use(authMiddleware);
-  // Domain 管理權限：admin 或 executive（追蹤模組非 system-admin only）
+  // Domain 管理權限：admin 或 executive（學習歷程模組非 system-admin only）
   router.use(adminOrExecutiveMiddleware);
   router.use(markDeprecatedEnglishTracking);
 

@@ -9,7 +9,7 @@
 ### 主體讀取 API（v3）
 
 - `/api/v3/learning-journey/...`
-- 包含 dashboard、risk students、readiness、data freshness、reconciliation 等
+- 包含總覽、risk students、readiness、data freshness、reconciliation 等
 
 ### 相容層 API（compatibility layer）
 
@@ -23,7 +23,7 @@
 2. 透過 sync/rebuild 產出學期聚合（`student_semester_profiles`）
 3. `/api/v3/learning-journey/*` 讀取 canonical + read model，輸出 KPI/學生/風險資料
 4. `/api/admin/english-tests/*` 作為 compatibility layer，優先讀 v3，失敗時 fallback legacy
-5. 前端 `/admin/learning-journey` 與 `/admin/english-test-tracking` 顯示資料來源與警示，供營運判讀
+5. 前端 `/admin/learning-journey` 顯示資料來源與警示；舊 `/admin/english-test-tracking` 僅保留相容導向
 
 ---
 

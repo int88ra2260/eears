@@ -1,4 +1,4 @@
-# 全校學生英檢成績長期追蹤模組
+# 英語學習歷程中心 legacy 英檢資料流程
 
 ## 功能說明
 
@@ -10,7 +10,7 @@
 ## 權限
 
 - 預設僅 **admin** 與 **executive**（執行長）可存取本模組所有 API 與後台頁面。
-- 前端選單「英檢長期追蹤」僅在具有管理員權限時顯示。
+- 前端正式入口統一為「英語學習歷程中心」，legacy 路由僅供相容與維運。
 
 ## 資料表與模型
 
@@ -105,5 +105,5 @@
 ## 與既有模組差異
 
 - **BESTEP 成績**（bestep_exam_scores）：每學期每生一筆，用於當學期 BESTEP 活動；**不替換**。
-- **英檢長期追蹤**（et_exam_attempts + et_exam_attempt_scores）：多筆 attempt、多測驗類型、可更正、可追溯，用於全校長期統計與報表。
+- **Learning Journey legacy 英檢資料**（et_exam_attempts + et_exam_attempt_scores）：多筆 attempt、多測驗類型、可更正、可追溯，用於全校學習歷程統計與報表。
 - 報名/活動/黑名單/問卷流程不受影響，僅新增表與 API。

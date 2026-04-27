@@ -2,10 +2,10 @@
 
 /**
  * @deprecated
- * Will be removed after Learning Journey v3 fully replaces legacy tracking.
+ * Will be removed after Learning Journey fully replaces legacy English-test data flows.
  */
 if (process.env.NODE_ENV !== 'production') {
-  console.warn('Legacy English Test Tracking is deprecated. Use Learning Journey v3.');
+  console.warn('Legacy Learning Journey English-test report service is deprecated. Use Learning Journey APIs.');
 }
 
 const { Op } = require('sequelize');

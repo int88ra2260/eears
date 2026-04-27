@@ -60,7 +60,7 @@ GET /api/v3/learning-journey/admin/legacy-usage-audit?days=30
 | 項目 | 原因 |
 |---|---|
 | `/api/english-tests/*` 全面 410 | 仍需歷史學期 fallback / audit；新學期已由 canonical-required 擋寫 |
-| `/api/admin/english-tests/*` 全面 410 | V2 維運與過渡 dashboard 尚可能需要 |
+| `/api/admin/english-tests/*` 全面 410 | 相容維運與過渡總覽尚可能需要 |
 | `english_test_registrations` | BESTEP 報名營運權威 |
 | `bestep_attendance` | BESTEP 出席原始來源 |
 | `bestep_exam_scores` | BESTEP 成績原始匯入來源 |

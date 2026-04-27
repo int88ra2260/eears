@@ -14,7 +14,7 @@
 | `/admin/surveys` | AdminLayout 內子 Route | `SurveyManagement` |
 | `/admin/survey-settings` | AdminLayout 內子 Route | `SurveySettings` |
 | `/admin/english-test` | AdminLayout 內子 Route | `EnglishTestManagement` |
-| `/admin/english-test-tracking` | AdminLayout 內子 Route | `EnglishTestTracking` |
+| `/admin/english-test-tracking` | AdminLayout 內 legacy redirect | `LearningJourneyHubPage` |
 | `/admin/account` | AdminLayout 內子 Route | `AccountManagement` |
 | `/admin/account/reset` | AdminLayout 內子 Route | `ForceResetPassword` |
 | `/admin/classes/:classId/detail` | **獨立 Route**（不在 AdminLayout 子層） | `ClassDetail`（同 token gate） |
@@ -27,7 +27,7 @@
 ```
 AdminLayout, AdminHome, ClassOverview, ViolationManagement, SurveyManagement,
 SurveySettings, ClassDetail, AccountManagement, ForceResetPassword,
-EnglishTestManagement, ClassBestepOverview, BestepImportPage, EnglishTestTracking
+EnglishTestManagement, ClassBestepOverview, BestepImportPage, LearningJourneyHubPage
 ```
 
 ---
@@ -46,7 +46,7 @@ EnglishTestManagement, ClassBestepOverview, BestepImportPage, EnglishTestTrackin
 | **SurveyManagement** | `/admin/surveys` | 問卷列表與管理 |
 | **SurveySettings** | `/admin/survey-settings` | 問卷設定頁 |
 | **EnglishTestManagement** | `/admin/english-test` | 培力英檢管理，組合多個 english-test/* 子元件 |
-| **EnglishTestTracking** | `/admin/english-test-tracking` | 英檢長期追蹤、名冊/成績匯入、drill-down |
+| **LearningJourneyHubPage** | `/admin/learning-journey` | 英語學習歷程中心、學期總覽、學生查詢、資料來源診斷 |
 | **AccountManagement** | `/admin/account` | 帳號列表與管理 |
 | **ForceResetPassword** | `/admin/account/reset` | 強制修改密碼頁 |
 | **ClassDetail** | `/admin/classes/:classId/detail` | 單一班級詳情（獨立 Route） |
@@ -118,8 +118,8 @@ EnglishTestManagement, ClassBestepOverview, BestepImportPage, EnglishTestTrackin
 - **BestepImportPage**  
   僅使用 `useNavigate()`，**未使用 useOutletContext**，邏輯自洽，對 layout 依賴較低，搬遷風險低。
 
-- **EnglishTestTracking**  
-  未使用 useOutletContext，改從 `localStorage.getItem('token')` 取 token 打 API。與 AdminLayout 僅有「被放在同一組 Route 下」的關係，搬遷風險中等（需維持路由與權限一致）。
+- **LearningJourneyHubPage**
+  統一承接英語學習歷程中心入口。與 AdminLayout 僅有「被放在同一組 Route 下」的關係，搬遷風險中等（需維持路由與權限一致）。
 
 ---
 
@@ -137,7 +137,7 @@ src/pages/admin/
   SurveyManagementPage.js
   SurveySettingsPage.js
   EnglishTestManagementPage.js
-  EnglishTestTrackingPage.js
+  LearningJourneyHubPage.jsx
   AccountManagementPage.js
   ForceResetPasswordPage.js
   ClassDetailPage.js      → 引用 components/ClassDetail（獨立 Route）
@@ -161,7 +161,7 @@ src/pages/admin/
 | 違規 | 可選 `components/admin/violations/` | ViolationManagement 或拆出的列表/表單 |
 | 問卷後台 | 可選 `components/admin/surveys/` | SurveyManagement、SurveySettings 或拆出列表/表單 |
 | 培力英檢 | **已有** `components/english-test/` | 維持；可選改為 `components/admin/english-test/` 以與其他 admin 並列 |
-| 英檢追蹤 | 可選 `components/admin/english-test-tracking/` | EnglishTestTracking 若拆出圖表/表單子元件 |
+| 英語學習歷程 | 可選 `components/admin/learning-journey/` | Learning Journey 若拆出圖表/表單子元件 |
 | 帳號 | 可選 `components/admin/account/` | AccountManagement、ForceResetPassword 或拆出表單 |
 
 目前僅 **english-test** 已有明確 feature 子目錄；其餘可待頁面 wrapper 穩定後，再依需求建立 `admin/*` 子目錄並漸進抽元件。
@@ -176,9 +176,9 @@ src/pages/admin/
 |----------|------|------|
 | 1 | **BestepImportPage** | 無 useOutletContext，僅 useNavigate；表單與 API 自洽，依賴最少。 |
 | 2 | **ClassDetail** | 獨立 Route、無 Outlet context；僅 token gate + useParams + useNavigate，改 import 即可。 |
-| 3 | **EnglishTestTracking** | 無 useOutletContext，自讀 token；邏輯集中、介面單一，適合當下一個 wrapper。 |
+| 3 | **LearningJourneyHubPage** | 英語學習歷程中心路由入口；邏輯集中但資料來源較多，需維持既有權限與相容 redirect。 |
 
-其餘頁面（AdminHome、ClassOverview、ViolationManagement、SurveyManagement、SurveySettings、AccountManagement、ForceResetPassword、EnglishTestManagement、ClassBestepOverview）皆使用 **useOutletContext**，搬遷時需確保 wrapper 僅轉包一層，Outlet 仍由 AdminLayout 渲染，context 不變，風險仍可控，但建議排在 BestepImport、ClassDetail、EnglishTestTracking 之後，作為第二批。
+其餘頁面（AdminHome、ClassOverview、ViolationManagement、SurveyManagement、SurveySettings、AccountManagement、ForceResetPassword、EnglishTestManagement、ClassBestepOverview）皆使用 **useOutletContext**，搬遷時需確保 wrapper 僅轉包一層，Outlet 仍由 AdminLayout 渲染，context 不變，風險仍可控，但建議排在 BestepImport、ClassDetail、LearningJourneyHubPage 之後，作為第二批。
 
 ---
 
@@ -199,5 +199,5 @@ src/pages/admin/
 ## 九、總結
 
 - **本輪建議**：僅產出本盤點與分批策略，**不執行大規模搬檔**。若後續執行 Phase 1 admin wrapper，建議只做：  
-  **BestepImportPage**、**ClassDetail**、**EnglishTestTracking** 三支的 `pages/admin/*` wrapper，並將 App.js 對應 import 改為從 `pages/admin/*` 引入，其餘維持不變。
+  **BestepImportPage**、**ClassDetail**、**LearningJourneyHubPage** 三支的 `pages/admin/*` wrapper，並將 App.js 對應 import 改為從 `pages/admin/*` 引入，其餘維持不變。
 - **後續批次**：再依序處理其餘 useOutletContext 頁面（同一 wrapper 模式），最後再視需要整理 `components/admin/*` feature 目錄與 AdminLayout 重構。

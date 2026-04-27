@@ -22,17 +22,17 @@
 - [ ] 已執行 readiness check
 - [ ] 已執行 P4 governance overview
 
-## C. 學期 / 班級總覽 Dashboard
+## C. 學期 / 班級總覽
 
 測試頁：`/admin/learning-journey`
 
-- [ ] 指定學期可載入正式 dashboard
+- [ ] 指定學期可載入正式總覽
 - [ ] 名冊人數合理
 - [ ] 達標率合理
 - [ ] BESTEP / 英檢報名率合理
 - [ ] 活動參與率合理
 - [ ] 系級 / 年級總覽可顯示
-- [ ] dashboard 數據與行政認知一致或差異可解釋
+- [ ] 總覽數據與行政認知一致或差異可解釋
 
 ## D. 風險學生清單
 

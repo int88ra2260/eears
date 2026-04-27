@@ -71,7 +71,6 @@ import AdminEventDetailPage from './pages/admin/AdminEventDetailPage';
 import AdminEventParticipationStatsPage from './pages/admin/AdminEventParticipationStatsPage';
 import EnglishTestStudentDetailPage from './pages/admin/EnglishTestStudentDetailPage';
 import EnglishTestStudentTimelinePage from './pages/admin/EnglishTestStudentTimelinePage.jsx';
-import EnglishTestRiskPage from './pages/admin/EnglishTestRiskPage';
 import EnglishTestImportHubPage from './pages/admin/EnglishTestImportHubPage';
 import LearningJourneyHubPage from './pages/admin/LearningJourneyHubPage';
 import LearningJourneyStudentPage from './pages/admin/LearningJourneyStudentPage';
@@ -467,27 +466,24 @@ function AppContent() {
               <Route path="settings/system" element={<SystemSettingsPage />} />
               <Route path="diagnostics" element={<InternalDiagnosticsPage />} />
               <Route path="english-test" element={<EnglishTestManagement />} />
+              {/* legacy route (redirect only)
+                  kept for backward compatibility
+                  DO NOT use for new features */}
               <Route path="english-test-tracking" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route path="english-test-tracking-v2" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route path="learning-journey-center" element={<Navigate to="/admin/learning-journey" replace />} />
-              <Route
-                path="english-test-tracking/legacy"
-                element={(
-                  <LegacyArchiveNotice
-                    title="Legacy 英檢追蹤頁已封存"
-                    replacementPath="/admin/learning-journey"
-                    replacementLabel="英語學習歷程中心"
-                    note="如需檢查資料來源與切換狀態，請使用英語學習歷程中心的進階診斷區。"
-                  />
-                )}
-              />
+              {/* legacy route (redirect only)
+                  kept for backward compatibility
+                  DO NOT use for new features */}
               <Route path="english-test-v2" element={<Navigate to="/admin/learning-journey" replace />} />
-              <Route path="english-test-v2/students" element={<Navigate to="/admin/learning-journey?tab=students" replace />} />
+              <Route path="english-test-v2/students" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route path="english-test-v2/students/:studentId" element={<LegacyEnglishTestStudentRedirect />} />
-              <Route path="english-test-tracking/students" element={<Navigate to="/admin/learning-journey?tab=students" replace />} />
+              <Route path="english-test-tracking/students" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route path="english-test-tracking/students/:studentId" element={<EnglishTestStudentDetailPage />} />
               <Route path="english-test-tracking/student-timeline/:studentId" element={<EnglishTestStudentTimelinePage />} />
-              <Route path="english-test-tracking/risk" element={<EnglishTestRiskPage />} />
+              <Route path="english-test-tracking/*" element={<Navigate to="/admin/learning-journey" replace />} />
+              <Route path="english-test-v2/*" element={<Navigate to="/admin/learning-journey" replace />} />
+              <Route path="learning-journey-center/*" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route path="english-test/import" element={<EnglishTestImportHubPage />} />
               <Route path="learning-journey" element={<LearningJourneyHubPage />} />
               <Route path="learning-journey/students/:studentId" element={<LearningJourneyStudentPage />} />

@@ -533,7 +533,7 @@ export default function AdminDashboardProduct() {
         if (what === 'english') await fetchEnglishPendingKpi();
         if (what === 'announcements') await fetchAnnouncementDraftKpi();
       } catch (e) {
-        toast.warning('儀表板資料載入失敗，請稍後重試');
+        toast.warning('總覽資料載入失敗，請稍後重試');
       }
     },
     [fetchAnnouncementDraftKpi, fetchEnglishPendingKpi, fetchRecentEventsKpi, fetchTodayReservationsKpi, toast],

@@ -37,7 +37,7 @@
 | P2 修課資料層 | P2 execution plan / course import UI | 待執行 | migration、dry run、apply、student courses API | ＿＿＿＿ |
 | P3 正式學生頁 | `docs/learning-journey-p3b-uat-checklist.md` | 待執行 | 抽查學生頁、timeline、risk、data quality | ＿＿＿＿ |
 | P3-B report/consistency | `docs/learning-journey-p3b-uat-checklist.md` | 待執行 | JSON/HTML report 與頁面一致 | ＿＿＿＿ |
-| P4 governance | `docs/learning-journey-p4-launch-uat-report.md` | 待執行 | dashboard、freshness、reconciliation、imports | ＿＿＿＿ |
+| P4 governance | `docs/learning-journey-p4-launch-uat-report.md` | 待執行 | 總覽、freshness、reconciliation、imports | ＿＿＿＿ |
 | P5 prelaunch | `docs/learning-journey-p5-prelaunch-checklist.md` | 待執行 | legacy 入口、每日維運入口、go/no-go | ＿＿＿＿ |
 | P6 fallback/canonical | `docs/learning-journey-p6-uat-checklist.md` | 待執行 | fallback meta、canonical coverage、legacy write log | ＿＿＿＿ |
 | P7 job runs | `docs/learning-journey-p7-job-runs-automation.md` | 待執行 | `job_runs`、lock、recent jobs、scheduler | ＿＿＿＿ |

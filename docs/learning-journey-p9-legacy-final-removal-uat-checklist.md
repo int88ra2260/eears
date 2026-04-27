@@ -32,7 +32,7 @@
 - [ ] 問卷公開讀取改用 `/api/surveys/public/:surveyKey`。
 - [ ] 問卷提交改用 `/api/surveys/public/:surveyKey/responses`。
 - [ ] 問卷管理改用 Survey Center / Survey Rules。
-- [ ] 英檢 dashboard/profile/report 改用 `/api/v3/learning-journey/*`。
+- [ ] 英語學習歷程中心總覽/profile/report 改用 `/api/v3/learning-journey/*`。
 - [ ] BESTEP operational source 仍正常，不被誤下線。
 
 ## 5. 最終移除 Go / No-Go

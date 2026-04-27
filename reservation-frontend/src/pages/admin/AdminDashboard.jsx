@@ -1,4 +1,4 @@
-// TODO: legacy dashboard, candidate for removal — not mounted in App.js routes; see AdminDashboardProduct.
+// TODO: legacy overview, candidate for removal - not mounted in App.js routes; see AdminDashboardProduct.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import useToast from '../../components/ui/useToast';
@@ -64,7 +64,7 @@ export default function AdminDashboard() {
 
     if (!token) {
       setLoading(false);
-      setError('尚未登入，請先登入後查看儀表板。');
+      setError('尚未登入，請先登入後查看總覽。');
       return () => { ignore = true; };
     }
 
@@ -105,8 +105,8 @@ export default function AdminDashboard() {
       setAnnouncementDraftCount(Array.isArray(draftData?.items) ? draftData.items.length : null);
 
       if (tasks.every((t) => t.status === 'rejected')) {
-        setError('目前無法載入儀表板資料，請稍後再試。');
-        toast.warning('儀表板資料載入失敗，請稍後重試');
+        setError('目前無法載入總覽資料，請稍後再試。');
+        toast.warning('總覽資料載入失敗，請稍後重試');
       }
 
       setLoading(false);
@@ -130,7 +130,7 @@ export default function AdminDashboard() {
   const recentViolations = useMemo(() => violations.slice(0, 5), [violations]);
 
   if (loading) {
-    return <div className="alert alert-info">載入 Dashboard 中...</div>;
+    return <div className="alert alert-info">載入總覽中...</div>;
   }
 
   if (error) {
@@ -140,7 +140,7 @@ export default function AdminDashboard() {
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h4 className="mb-0">系統總覽 Dashboard</h4>
+        <h4 className="mb-0">系統總覽</h4>
         <Link to="/admin/settings/system" className="btn btn-outline-primary btn-sm">前往系統設定</Link>
       </div>
       <div className="alert alert-light border small mb-3">

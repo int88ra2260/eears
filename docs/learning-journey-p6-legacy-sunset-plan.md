@@ -4,14 +4,14 @@
 
 ## 1. Legacy 類型分類
 
-### A. 英檢 legacy tracking
+### A. Learning Journey legacy 英檢資料
 
 範圍包含 `/api/english-tests/*`、`/api/admin/english-tests/*`、`/admin/english-test-tracking/legacy` 與 `et_*` tables。
 
 判斷：
 
 - `et_exam_attempts`、`et_exam_attempt_skill_scores` 仍可能透過 legacy import 寫入，短期屬於過渡 active write source。
-- `et_enrollment_snapshots` 仍被 dashboard/class overview 與學生聚合頁讀取，應先轉為 read-only fallback，再由 `student_semester_profiles` 完整承接。
+- `et_enrollment_snapshots` 仍被總覽/class overview 與學生聚合頁讀取，應先轉為 read-only fallback，再由 `student_semester_profiles` 完整承接。
 - `et_semester_student_best_skills` 是 derived/cache，不是 source of truth，可在 canonical coverage 足夠後移除正式依賴。
 - `/api/english-tests/*` 與 `/api/admin/english-tests/*` 已可加 warning/deprecation header；高風險寫入先 audit，不立即關閉。
 - `/admin/english-test-tracking/legacy` 只保留故障排查、歷史比對與 rollback。
@@ -46,14 +46,14 @@
 - `/admin/english-test-v2`：側欄隱藏，App route redirect 保留。
 - `/admin/surveys`、`/admin/survey-settings`：側欄隱藏，直接 route 保留。
 - `/admin/english-test-tracking/legacy`：不列入側欄，僅 fallback。
-- `/admin/english-test-tracking`：保留為 V2 維運，不再作正式 Learning Journey 主入口。
+- `/admin/english-test-tracking`：保留為舊書籤相容導向，不再作正式 Learning Journey 主入口。
 
 ## 2. Legacy Inventory
 
 | Legacy 項目 | 類型 | 目前是否仍被引用 | 是否仍寫入 | 是否仍讀取 | 風險 | 建議狀態 | 下線階段 |
 |---|---|---|---|---|---|---|---|
-| `/api/english-tests/*` | 英檢 legacy tracking | 是，legacy tracking API | 是，import/recompute | 是 | 直接關閉會影響過渡匯入與 fallback | DEPRECATED_KEEP_ROUTE | Stage 1 warning header；Stage 2 read-only；Stage 3 410 |
-| `/api/admin/english-tests/*` | 英檢 V2 admin | 是，V2 dashboard/service | 是，semester/rebuild | 是 | 新舊 dashboard 差異需對帳 | DEPRECATED_KEEP_ROUTE | Stage 1 header/audit；Stage 2 歷史學期；Stage 3 archive |
+| `/api/english-tests/*` | Learning Journey legacy 英檢資料 | 是，legacy API | 是，import/recompute | 是 | 直接關閉會影響過渡匯入與 fallback | DEPRECATED_KEEP_ROUTE | Stage 1 warning header；Stage 2 read-only；Stage 3 410 |
+| `/api/admin/english-tests/*` | Learning Journey 相容 admin API | 是，相容 service | 是，semester/rebuild | 是 | 新舊總覽差異需對帳 | DEPRECATED_KEEP_ROUTE | Stage 1 header/audit；Stage 2 歷史學期；Stage 3 archive |
 | `/admin/english-test-tracking/legacy` | 前端 legacy UI | App route 保留 | 否 | 是 | 使用者誤當正式入口 | READ_ONLY_FALLBACK | Stage 1 隱藏；Stage 3 移除 |
 | `et_semesters` | 英檢 legacy table | 是 | 可能 | 是 | 學期對照仍被 V2 使用 | READ_ONLY_FALLBACK | Stage 2 read-only |
 | `et_enrollment_snapshots` | 英檢 legacy roster | 是，class overview/profile 補資料 | 可能由 import/sync 寫入 | 是 | canonical roster 未完整前不可移除 | READ_ONLY_FALLBACK | Stage 2 新學期不寫 legacy |

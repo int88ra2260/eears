@@ -1,5 +1,10 @@
 import { fetchClient } from '../utils/fetchClient';
 
+// TODO (Phase Next):
+// englishTestService 與 learningJourneyApi 存在部分領域重疊（學期摘要、學生資料）。
+// 未來可考慮統一為單一 read model API（Learning Journey）。
+// 本階段不進行重構，以避免影響既有功能。
+
 function authHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,

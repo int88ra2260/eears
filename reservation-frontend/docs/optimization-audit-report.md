@@ -9,7 +9,7 @@
 | 問題點 | 影響頁面/元件 | 具體可改善方向 | 優先級 |
 |--------|----------------|----------------|--------|
 | **alert() / window.confirm() 與 Toast / ConfirmModal 混用** | 多處：useEnglishTestBulkActions、useEnglishTestExport、useEnglishTestStatusUpdate、useEnglishTestDetail、useEnglishTestRegistrations、useEnglishTestRejection；AdminHome 刪除活動；useReservationAdminFlow（補簽到、刪除預約、批次未到、活動結束檢查）；BulkActionToolbar、QuickActionButtons、EnhancedTable、DetailModalWithTabs、LearningPartnerManagement、ViolationManagement、EnglishTestRegistrationPage、SurveyPage 等 | 高頻操作與錯誤回饋改為 Toast；需確認的危險操作改為 useConfirmModal（或各頁共用確認框），避免原生 alert/confirm 在無障礙與視覺上不一致 | 高 |
-| **Loading 狀態呈現方式不統一** | EnglishTestManagement（spinner + 骨架）、AdminHome、EventList、ReservationLookupSection、LearningPartnerManagement、EnglishTestTracking 等 | 訂出「全站 loading」規範：列表用 skeleton 或 spinner、按鈕用 disabled + 文案、Modal 內用 spinner；必要時抽共用 LoadingOverlay / Skeleton 元件 | 中 |
+| **Loading 狀態呈現方式不統一** | EnglishTestManagement（spinner + 骨架）、AdminHome、EventList、ReservationLookupSection、LearningPartnerManagement、Learning Journey 等 | 訂出「全站 loading」規範：列表用 skeleton 或 spinner、按鈕用 disabled + 文案、Modal 內用 spinner；必要時抽共用 LoadingOverlay / Skeleton 元件 | 中 |
 | **Empty state 缺乏統一設計** | 列表無資料時：EnglishTestManagement（圖示+文案+清除篩選）、MyReservations、EventList、admin 報表等 | 統一「無資料」區塊：圖示 + 主文案 + 次要說明 + 可選 CTA，並可抽成 EmptyState 元件 | 低 |
 | **Error state 多為 alert 或內聯文字** | 表單錯誤、API 錯誤散見各頁；AdminHome 用 ErrorAlert；EnglishTestManagement 用 Toast | 表單錯誤：欄位旁 + 表單上方彙總；API 錯誤：Toast 或頁頂 Alert，避免僅 alert() | 中 |
 | **後台與前台視覺階層不統一** | AdminLayout、EnglishTestManagement、AdminHome 使用 Bootstrap 類別；部分自訂 style 內聯；設計系統 design-system.css 與 index.css 並存 | 後台主要操作區（標題、工具列、表格、Modal）訂出階層：主標 h1、區塊標題、按鈕 primary/secondary、表格斑馬紋；必要時擴充 design-system 或撰寫簡短 admin 樣式指南 | 中 |

@@ -6,9 +6,9 @@
 
 | 領域 | Legacy 入口 | 目前狀態 | 正式替代入口 | 備註 |
 |------|-------------|----------|--------------|------|
-| 英檢長期追蹤 alias | `/admin/english-test-v2` | 側欄隱藏，redirect 至 `/admin/learning-journey` | `/admin/learning-journey` | P9 後不再導到 V2 維運頁 |
-| 英檢長期追蹤 legacy UI | `/admin/english-test-tracking/legacy` | 封存頁 | `/admin/learning-journey` | 不再直接載入 legacy component |
-| 英檢 V2 維運頁 | `/admin/english-test-tracking` | 保留並標記為 V2 維運 | `/admin/learning-journey` | 新查詢與正式報表以 Learning Journey 為主 |
+| Learning Journey legacy alias | `/admin/english-test-v2` | 側欄隱藏，redirect 至 `/admin/learning-journey` | `/admin/learning-journey` | 舊書籤相容用途 |
+| Learning Journey legacy UI | `/admin/english-test-tracking/legacy` | 封存頁 | `/admin/learning-journey` | 不再直接載入 legacy component |
+| Learning Journey legacy route | `/admin/english-test-tracking` | redirect 至 `/admin/learning-journey` | `/admin/learning-journey` | 新查詢與正式報表以 Learning Journey 為主 |
 | 培力英檢營運 | `/admin/english-test`、`/admin/english-test/import` | 保留營運入口 | Learning Journey 讀取其同步結果 | 報名審核與原始匯入仍需使用 |
 | 舊問卷管理 | `/admin/surveys` | 封存頁 | `/admin/survey-center`、`/admin/survey-rules` | 不再作正式管理入口 |
 | 舊問卷設定 | `/admin/survey-settings` | 封存頁 | `/admin/survey-rules` | 新規則不得只寫 legacy settings |
@@ -19,7 +19,7 @@
 | API | 目前狀態 | 替代 API / 模組 | Sunset / P9 行為 |
 |-----|----------|-----------------|---------|
 | `/api/english-tests/*` | deprecated，歷史學期 read/write 維運；canonical-required 學期禁止寫入 | `/api/v3/learning-journey/*` | Sunset target：2026-06-30；寫入受 P8 canonical policy 限制 |
-| `/api/admin/english-tests/*` | deprecated V2 admin API，仍可用於過渡 dashboard/重建 | `/api/v3/learning-journey/*` | Sunset target：TBD；canonical-required 學期禁止寫入 |
+| `/api/admin/english-tests/*` | deprecated admin API，仍可用於過渡總覽/重建 | `/api/v3/learning-journey/*` | Sunset target：TBD；canonical-required 學期禁止寫入 |
 | `/api/surveys/config` | 已 410 | `/api/surveys/public/:surveyKey`、Survey Center | Sunset：2026-04-27；回 `410 Gone` |
 | `/api/surveys/:surveyId` | deprecated 相容提交路徑 | `/api/surveys/public/:surveyKey/responses` | Sunset target：2026-06-30；寫入會記錄 `legacy_write` |
 | `/api/surveys/check/:surveyId/:studentId` | read-only deprecated 舊檢查路徑 | Survey Center / published survey 狀態 | Sunset target：2026-06-30；暫保留 read-only |
@@ -41,7 +41,7 @@
 ## 4. 操作原則
 
 - 新功能不得新增對 legacy `et_*`、`surveys.json` 或 legacy survey response tables 的寫入依賴。
-- Legacy API 可保留讀取與 fallback，但不得作為正式 dashboard/report 的唯一資料來源。
+- Legacy API 可保留讀取與 fallback，但不得作為正式總覽/report 的唯一資料來源。
 - 若正式頁面與 legacy 頁面數字不一致，先以 source of truth、sync log、reconciliation 結果判讀，不直接以 UI 數字互相比對下結論。
 - P6 後高風險 legacy write 應可在 `system_logs` 以 `legacy_write` 追蹤；Learning Journey fallback 應可在治理總覽看到 `fallbackUsage`。
 - P9 後已 sunset 的 API 應以 `410 Gone` 回應，並在 `system_logs` 以 `legacy_gone` 追蹤。

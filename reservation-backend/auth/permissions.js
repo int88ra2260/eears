@@ -64,7 +64,7 @@ const P = {
   // 稽核 / 系統日誌
   CAN_VIEW_AUDIT_LOGS: 'can_view_audit_logs',
 
-  // 英檢長期追蹤模組
+  // 英語學習歷程中心模組
   CAN_MANAGE_ENGLISH_TEST_TRACKING: 'can_manage_english_test_tracking',
 
   // 診斷

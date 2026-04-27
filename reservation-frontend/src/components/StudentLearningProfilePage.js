@@ -317,7 +317,7 @@ export default function StudentLearningProfilePage() {
             </Card.Body>
           </Card>
 
-          {/* 英檢長期追蹤資訊已在「英檢紀錄」與「CEFR 成長」卡片中呈現 */}
+          {/* 英語學習歷程中心資訊已在「英檢紀錄」與「CEFR 成長」卡片中呈現 */}
         </>
       )}
     </div>

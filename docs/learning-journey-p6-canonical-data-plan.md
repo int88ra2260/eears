@@ -22,7 +22,7 @@
 |---|---|---|---|---|---|
 | `getAggregatedStudentReadModel` profile/timeline | `students`、`student_semester_profiles`、`exam_attempts`、`activity_participations`、`course_enrollments` | `et_student_master`、`et_enrollment_snapshots`、`et_exam_attempts`、`et_semester_student_best_skills`、`reservations` | canonical 缺列但 legacy/operational source 有資料 | 暫不可 | 學生頁抽查、report 一致、fallbackUsage=0 |
 | `GET /students/:studentId/report` | 同 profile | 同 profile | report 由 aggregate profile 產生 | 暫不可 | JSON/HTML 與 profile 一致，fallback meta 可觀測 |
-| `GET /semesters/:semesterId/dashboard` | 目標應為 `student_semester_profiles` 與 canonical attempts | 目前聚合 dashboard 仍讀 `et_enrollment_snapshots`、BESTEP raw、best skill cache | P4 dashboard 為過渡摘要 | 可分階段 | canonical dashboard 與 legacy compare 通過 |
+| `GET /semesters/:semesterId/dashboard` | 目標應為 `student_semester_profiles` 與 canonical attempts | 目前聚合總覽仍讀 `et_enrollment_snapshots`、BESTEP raw、best skill cache | P4 總覽為過渡摘要 | 可分階段 | canonical 總覽與 legacy compare 通過 |
 | English test V3 summary | `student_semester_profiles`、`exam_attempts`、skill scores | compare API 才讀 legacy report | V3 查詢錯誤/資料空會產生 warning，不直接 fallback | 可保留 compare | compare diff 可接受 |
 | English test V3 students/detail | `students`、`student_semester_profiles`、`exam_attempts`、`exam_registrations`、`activity_participations` | `EtEnrollmentSnapshot` 補年級/系所；compare API 讀 legacy | canonical roster/profile 不完整 | 暫不可 | 新學期 profiles 完整，名冊/成績對帳通過 |
 | Survey gating `checkSurvey` | `surveys`、`survey_rules`、`survey_responses` | `SurveySettings`、legacy ET/EC survey response | product survey/rule 缺資料，或為避免舊填答被判未填 | 暫不可 | legacy responses migration 完成，gating UAT 通過 |
@@ -49,7 +49,7 @@
 
 ### Stage 3：Canonical only
 
-- dashboard/profile/timeline/report 不再依賴 legacy fallback。
+- 總覽/profile/timeline/report 不再依賴 legacy fallback。
 - Legacy API 改 read-only、archive 查詢或回 410。
 - 只保留必要 audit/archive 資料查詢。
 - Governance overview 的 fallback usage 應長期維持 0；若大於 0，視為事故或歷史查詢例外。

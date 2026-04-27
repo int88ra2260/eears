@@ -25,7 +25,7 @@
 | BESTEP 出席 | `bestep_attendance` | Learning Journey timeline 可讀 `bestep_attendance` 或同步後的活動/考試事件 | 保留為 BESTEP 匯入來源 | 目前主要進 aggregate timeline，尚未完全 canonical 化 |
 | BESTEP 成績 | `bestep_exam_scores` | `exam_attempts` + `exam_attempt_skill_scores`（`source_type = BESTEP`） | `bestep_exam_scores` 仍為匯入原始來源；canonical attempt 由 sync/migration 產生 | 不可手動修改 canonical attempt 取代來源修正流程 |
 | 其他英檢 | `exam_attempts` + `exam_attempt_skill_scores`（`source_type = EXTERNAL` 或 `MANUAL`） | 同左 | `et_exam_attempts` 可暫作 legacy 匯入來源；正式新功能不應新增對 `et_*` 的寫入依賴 | TOEIC/IELTS/TOEFL/GEPT 原始分數對 CEFR 的 mapping 尚需另案補齊 |
-| 英檢長期追蹤 legacy | `et_enrollment_snapshots`、`et_exam_attempts`、`et_exam_attempt_skill_scores`、`et_semester_student_best_skills` | 只供 fallback、對帳、歷史稽核與過渡 dashboard | 不刪表、不 destructive migration；逐步轉為唯讀 | `/api/english-tests/*` 與 legacy UI 標記為待淘汰 |
+| Learning Journey legacy 英檢資料 | `et_enrollment_snapshots`、`et_exam_attempts`、`et_exam_attempt_skill_scores`、`et_semester_student_best_skills` | 只供 fallback、對帳、歷史稽核與過渡總覽 | 不刪表、不 destructive migration；逐步轉為唯讀 | `/api/english-tests/*` 與 legacy UI 標記為待淘汰 |
 | 修課紀錄 | `courses`、`course_enrollments`、`course_outcome_mappings` | Learning Journey timeline/profile/report | `classes` / `class_memberships` 只保留班級名冊/管理視角，不作為修課紀錄權威 | `course_enrollments` 已接入 Learning Journey `course_record` timeline |
 | 問卷填答 | `survey_responses` / `survey_response_answers`（產品化問卷） | 問卷統計與 gating 優先讀 DB product tables | `surveys.json` 與 legacy `english_table_survey` / `english_club_survey_responses` 保留 fallback/遷移用途 | 新問卷不得以 JSON 檔作為唯一來源 |
 
@@ -46,7 +46,7 @@ Learning Journey 不是單一來源表，而是由 canonical / legacy / derived 
 - `student_semester_profiles.best_snapshot_json`
 - `student_semester_profiles.latest_snapshot_json`
 - `et_semester_student_best_skills`
-- dashboard KPI 快照、data quality flags、匯入歷程 summary
+- 總覽 KPI 快照、data quality flags、匯入歷程 summary
 
 Derived 資料可重建，不作為唯一真實來源。若 derived 與來源表不一致，先以來源表與 sync/reconciliation 結果判讀。
 
@@ -54,7 +54,7 @@ Derived 資料可重建，不作為唯一真實來源。若 derived 與來源表
 
 | 類別 | 表 / API | 目前策略 | 目標策略 |
 |------|----------|----------|----------|
-| 英檢 legacy tracking | `et_*`、`/api/english-tests/*`、`/admin/english-test-tracking/legacy` | 已標記 deprecated，保留 fallback 與維運查詢 | 完成 sync、reconciliation、UAT 後改唯讀，再規劃下線 API/UI |
+| Learning Journey legacy 英檢資料 | `et_*`、`/api/english-tests/*`、`/admin/english-test-tracking/legacy` | 已標記 deprecated，保留 fallback 與維運查詢 | 完成 sync、reconciliation、UAT 後改唯讀，再規劃下線 API/UI |
 | 問卷 legacy | `english_table_survey`、`english_club_survey_responses`、`SurveySettings`、`surveys.json`、舊 `/api/surveys/*` 相容路徑 | 已標記 deprecated，保留 fallback 與舊資料查詢 | 新填答與新規則以 DB product tables 為主，legacy 轉唯讀 |
 | 活動預約舊 API | `DELETE /api/reservations/:id` | 已回 410 | 保留 410 一段時間後移除 |
 | 黑名單舊流程 | `blacklistRouter` 的獨立違規 API | 與 `eventRouter` 違規流程重疊 | 確認前端與營運依賴後收斂至活動違規主流程 |
@@ -77,7 +77,7 @@ Derived 資料可重建，不作為唯一真實來源。若 derived 與來源表
 P5 後的入口原則：
 
 - `/admin/learning-journey` 是英語學習歷程與每日治理主入口。
-- `/admin/english-test-tracking` 僅保留 V2 維運與過渡查詢。
+- `/admin/english-test-tracking` 僅保留舊書籤相容導向。
 - `/admin/english-test-tracking/legacy`、`/admin/english-test-v2`、`/admin/surveys`、`/admin/survey-settings` 不作側欄正式入口。
 - Legacy API 回應應帶 deprecation headers，供前端、整合端與 log 追蹤。
 
