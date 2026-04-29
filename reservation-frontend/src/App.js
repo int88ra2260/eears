@@ -70,8 +70,8 @@ import InternalDiagnosticsPage from './pages/admin/InternalDiagnosticsPage';
 import AdminEventDetailPage from './pages/admin/AdminEventDetailPage';
 import AdminEventParticipationStatsPage from './pages/admin/AdminEventParticipationStatsPage';
 import EnglishTestImportHubPage from './pages/admin/EnglishTestImportHubPage';
-import LearningJourneyHubPage from './pages/admin/LearningJourneyHubPage';
-import LearningJourneyStudentPage from './pages/admin/LearningJourneyStudentPage';
+import LearningJourneyDashboardPage from './pages/admin/LearningJourneyDashboardPage';
+import LearningJourneyStudentProfilePage from './pages/admin/LearningJourneyStudentProfilePage';
 import { fetchClient } from './utils/fetchClient';
 import ToastProvider from './components/ui/ToastProvider';
 
@@ -483,8 +483,8 @@ function AppContent() {
               <Route path="english-test-v2/*" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route path="learning-journey-center/*" element={<Navigate to="/admin/learning-journey" replace />} />
               <Route path="english-test/import" element={<EnglishTestImportHubPage />} />
-              <Route path="learning-journey" element={<LearningJourneyHubPage />} />
-              <Route path="learning-journey/students/:studentId" element={<LearningJourneyStudentPage />} />
+              <Route path="learning-journey" element={<LearningJourneyDashboardPage />} />
+              <Route path="learning-journey/students/:studentId" element={<LearningJourneyStudentProfilePage />} />
               <Route path="analytics/student/:studentId" element={<StudentProfilePage />} />
               <Route path="analytics/students" element={<StudentLearningProfileSearchPage />} />
             <Route path="analytics/overview" element={<AdminAnalyticsPage />} />

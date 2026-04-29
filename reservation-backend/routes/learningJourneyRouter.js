@@ -81,23 +81,8 @@ router.get('/semesters/:id/import-histories', requireAdminPlus, controller.getFi
 router.get('/semesters/:id/students', controller.getFinalSemesterStudentsHandler);
 router.get('/students/:studentId', controller.getFinalStudentDetailHandler);
 
-router.get(
-  '/semesters/:semesterId/english-test-summary/compare',
-  requireAdminPlus,
-  controller.getEnglishTestSummaryCompareHandler
-);
 router.get('/semesters/:semesterId/english-test-summary', controller.getEnglishTestSummaryV3Handler);
 
-router.get(
-  '/semesters/:semesterId/english-test-students/compare',
-  requireAdminPlus,
-  controller.getEnglishTestStudentsCompareHandler
-);
-router.get(
-  '/semesters/:semesterId/english-test-students/:studentId/compare',
-  requireAdminPlus,
-  controller.getEnglishTestStudentDetailCompareHandler
-);
 router.get(
   '/semesters/:semesterId/english-test-students/:studentId',
   controller.getEnglishTestStudentDetailV3Handler

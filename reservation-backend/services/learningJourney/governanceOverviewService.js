@@ -13,7 +13,6 @@ const ljReadAggregate = require('../learningJourneyService');
 const { getRiskStudentsBySemester } = require('./learningJourneyRiskService');
 const { getLearningJourneyDataFreshness } = require('./dataFreshnessService');
 const { getSemesterReconciliation, isValidSemesterId } = require('./reconciliationService');
-const { getFallbackGovernanceSummary } = require('./learningJourneyFallbackLogger');
 const { buildCanonicalPolicy } = require('./canonicalSemesterPolicyService');
 const { getSemesterReadinessGate } = require('./readinessGateService');
 
@@ -224,7 +223,7 @@ function buildCanonicalReadyStatus({ canonicalPolicy, canonicalCoverage, freshne
   };
 }
 
-function buildRecommendations({ freshness, reconciliation, risk, imports, fallbackUsage, canonicalCoverage, canonicalReady }) {
+function buildRecommendations({ freshness, reconciliation, risk, imports, canonicalCoverage, canonicalReady }) {
   const recommendations = [];
   if ((freshness.sections || []).some((s) => s.status === 'stale' || s.status === 'empty' || s.status === 'unknown')) {
     recommendations.push('資料新鮮度存在 stale/empty/unknown，建議先執行同步或確認匯入來源。');
@@ -237,9 +236,6 @@ function buildRecommendations({ freshness, reconciliation, risk, imports, fallba
   }
   if (imports.quarantineCount > 0 || imports.latestBatchStatus === 'failed' || imports.latestBatchStatus === 'partial') {
     recommendations.push('匯入/同步治理仍有 quarantine 或失敗批次，建議先處理錯誤列。');
-  }
-  if (fallbackUsage.fallbackUsageCount > 0) {
-    recommendations.push(`近期偵測到 ${fallbackUsage.fallbackUsageCount} 次 legacy fallback 使用，建議檢查 canonical coverage 與同步狀態。`);
   }
   if ((canonicalCoverage.canonicalMissingSections || []).length > 0) {
     recommendations.push(`Canonical coverage 尚未完整：${canonicalCoverage.canonicalMissingSections.join(', ')}。`);
@@ -283,7 +279,6 @@ async function getGovernanceOverview(semesterIdRaw) {
 
   const freshnessStatus = worstStatus((freshness.sections || []).map((s) => s.status));
   const reconciliationStatus = worstStatus((reconciliation.sections || []).map((s) => s.status));
-  const fallbackUsage = getFallbackGovernanceSummary(semesterId);
   const canonicalCoverage = buildCanonicalCoverage(freshness);
   const canonicalReady = buildCanonicalReadyStatus({
     canonicalPolicy: buildCanonicalPolicy(semesterId),
@@ -296,9 +291,8 @@ async function getGovernanceOverview(semesterIdRaw) {
     ? 'warning'
     : 'ok';
   const riskStatus = risk.status === 'error' ? 'error' : Number(risk.metrics && risk.metrics.riskCount || 0) > 0 ? 'warning' : 'ok';
-  const fallbackStatus = fallbackUsage.fallbackUsageCount > 0 ? 'warning' : 'ok';
   const coverageStatus = canonicalCoverage.canonicalMissingSections.length > 0 ? 'warning' : 'ok';
-  const overallStatus = worstStatus([freshnessStatus, reconciliationStatus, importStatus, riskStatus, fallbackStatus, coverageStatus]);
+  const overallStatus = worstStatus([freshnessStatus, reconciliationStatus, importStatus, riskStatus, coverageStatus]);
 
   const data = {
     semesterId,
@@ -323,13 +317,7 @@ async function getGovernanceOverview(semesterIdRaw) {
     },
     canonicalCoverage,
     canonicalReady,
-    fallbackUsage: {
-      ...fallbackUsage,
-      canonicalMissingSections: canonicalCoverage.canonicalMissingSections
-    },
-    legacyApiUsageWarning: fallbackUsage.fallbackUsageCount > 0
-      ? '偵測到 legacy fallback 使用；請確認是否為歷史學期查詢或 canonical sync 尚未完成。'
-      : '',
+    legacyApiUsageWarning: '',
     jobs: Array.isArray(jobRuns)
       ? {
           enabled: true,
@@ -344,7 +332,7 @@ async function getGovernanceOverview(semesterIdRaw) {
         }
   };
 
-  data.recommendations = buildRecommendations({ freshness, reconciliation, risk, imports, fallbackUsage, canonicalCoverage, canonicalReady });
+  data.recommendations = buildRecommendations({ freshness, reconciliation, risk, imports, canonicalCoverage, canonicalReady });
   return data;
 }
 

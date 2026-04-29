@@ -1,7 +1,7 @@
 'use strict';
 
 const { Op } = require('sequelize');
-const { StudentSemesterProfile, ExamAttempt, ExamAttemptSkillScore } = require('../../models');
+const { EtEnrollmentSnapshot, EtExamAttempt, EtExamAttemptSkillScore } = require('../../models');
 const { isValidSemesterId } = require('./reconciliationService');
 const { compareBestScoreCandidate, getCefrRank } = require('./utils/cefrRules');
 
@@ -22,7 +22,7 @@ function resolveSkillRank(row) {
     const n = Number(row.cefrRank);
     if (Number.isFinite(n) && n > 0) return n;
   }
-  return getCefrRank(row.cefrLevel) || null;
+  return getCefrRank(row.cefr || row.cefrLevel) || null;
 }
 
 function toCandidate(row, attempt) {
@@ -30,7 +30,7 @@ function toCandidate(row, attempt) {
   return {
     cefrRank: rank != null ? Number(rank) : -1,
     rawScore: row.rawScore != null && row.rawScore !== '' ? Number(row.rawScore) : -1,
-    examDate: attempt.examDate,
+    examDate: attempt.testDate || attempt.examDate,
     id: attempt.id
   };
 }
@@ -91,7 +91,7 @@ function emptySummary(semesterId, warnings) {
 }
 
 /**
- * 以 LJS read model（student_semester_profiles + exam_attempts + skill scores）組出與 V2 summary 對齊之欄位。
+ * 以 V3 核心 et_* 資料（名冊 + 測驗嘗試 + 技能分數）組出摘要欄位。
  * 不拋錯；查詢失敗時回退為 0 並附 dataQuality.warnings。
  */
 async function getEnglishTestSummaryV3(semesterIdRaw) {
@@ -118,21 +118,21 @@ async function getEnglishTestSummaryV3(semesterIdRaw) {
     };
   }
 
-  let profiles = [];
+  let enrollments = [];
   let attempts = [];
 
   try {
-    profiles = await StudentSemesterProfile.findAll({
-      where: { semesterId, isRostered: true },
-      attributes: ['studentPk', 'studentId']
+    enrollments = await EtEnrollmentSnapshot.findAll({
+      where: { semesterId, isActive: true },
+      attributes: ['studentId']
     });
   } catch (e) {
-    pushWarning(warnings, 'ROSTER_QUERY_FAILED', e.message || 'student_semester_profiles 查詢失敗', 'error');
+    pushWarning(warnings, 'ROSTER_QUERY_FAILED', e.message || 'et_enrollment_snapshots 查詢失敗', 'error');
     return emptySummary(semesterId, warnings);
   }
 
-  if (!profiles.length) {
-    pushWarning(warnings, 'NO_ROSTER_PROFILES', '本學期尚無 is_rostered 之 student_semester_profiles，名冊人數為 0', 'warning');
+  if (!enrollments.length) {
+    pushWarning(warnings, 'NO_ROSTER_PROFILES', '本學期尚無 isActive 之 et_enrollment_snapshots，名冊人數為 0', 'warning');
     return {
       semesterId,
       rosterActiveStudentCount: 0,
@@ -150,34 +150,33 @@ async function getEnglishTestSummaryV3(semesterIdRaw) {
     };
   }
 
-  const studentPks = [...new Set(profiles.map((p) => p.studentPk).filter((x) => x != null))];
+  const studentIds = [...new Set(enrollments.map((p) => String(p.studentId || '').trim().toUpperCase()).filter(Boolean))];
 
   try {
-    attempts = await ExamAttempt.findAll({
+    attempts = await EtExamAttempt.findAll({
       where: {
-        semesterId,
-        studentPk: { [Op.in]: studentPks },
+        studentId: { [Op.in]: studentIds },
         status: 'valid'
       },
-      include: [{ model: ExamAttemptSkillScore, as: 'skillScores', required: false }]
+      include: [{ model: EtExamAttemptSkillScore, as: 'skillScores', required: false }]
     });
   } catch (e) {
-    pushWarning(warnings, 'ATTEMPTS_QUERY_FAILED', e.message || 'exam_attempts 查詢失敗', 'error');
+    pushWarning(warnings, 'ATTEMPTS_QUERY_FAILED', e.message || 'et_exam_attempts 查詢失敗', 'error');
     return emptySummary(semesterId, warnings);
   }
 
   if (!attempts.length) {
-    pushWarning(warnings, 'NO_EXAM_ATTEMPTS', '本學期 LJS 尚無 status=valid 之 exam_attempts（請確認是否已同步 BESTEP／遷移）', 'warning');
+    pushWarning(warnings, 'NO_EXAM_ATTEMPTS', '本學期尚無 status=valid 之 et_exam_attempts（請確認是否已匯入外部英檢成績）', 'warning');
   }
 
-  const byPk = new Map();
+  const byStudentId = new Map();
   for (const att of attempts) {
-    const pk = att.studentPk;
-    if (!byPk.has(pk)) byPk.set(pk, []);
-    byPk.get(pk).push(att);
+    const sid = String(att.studentId || '').trim().toUpperCase();
+    if (!byStudentId.has(sid)) byStudentId.set(sid, []);
+    byStudentId.get(sid).push(att);
   }
 
-  const rosterActiveStudentCount = profiles.length;
+  const rosterActiveStudentCount = enrollments.length;
   let validBestScoreStudentCount = 0;
   let attainedStudentCount = 0;
   let listeningCount = 0;
@@ -185,8 +184,9 @@ async function getEnglishTestSummaryV3(semesterIdRaw) {
   let speakingCount = 0;
   let writingCount = 0;
 
-  for (const p of profiles) {
-    const list = byPk.get(p.studentPk) || [];
+  for (const p of enrollments) {
+    const sid = String(p.studentId || '').trim().toUpperCase();
+    const list = byStudentId.get(sid) || [];
     const best = mergeBestForStudent(list);
     if (hasAnyBestSkillRank(best)) validBestScoreStudentCount += 1;
     if (hasAnyAttainedB2(best)) attainedStudentCount += 1;
@@ -213,58 +213,6 @@ async function getEnglishTestSummaryV3(semesterIdRaw) {
   };
 }
 
-async function getEnglishTestSummaryCompare(semesterIdRaw) {
-  const englishTestReportService = require('../englishTestTracking/englishTestReportService');
-  const { isLearningJourneyV3ReadModelEnabled } = require('./learningJourneyFeatureFlags');
-
-  const semesterId = String(semesterIdRaw || '').trim();
-
-  let legacy = null;
-  let legacyError = null;
-  try {
-    legacy = await englishTestReportService.getSemesterSummary(semesterId, { activeOnly: true });
-  } catch (e) {
-    legacyError = e.message || String(e);
-  }
-
-  const v3 = await getEnglishTestSummaryV3(semesterId);
-
-  let diff = null;
-  let status = 'ok';
-
-  if (legacyError || v3.error) {
-    status = 'error';
-  } else {
-    diff = {
-      rosterActiveStudentCount: v3.rosterActiveStudentCount - legacy.rosterActiveStudentCount,
-      validBestScoreStudentCount: v3.validBestScoreStudentCount - legacy.validBestScoreStudentCount,
-      attainedStudentCount: v3.attainedStudentCount - legacy.attainedStudentCount,
-      attainmentRate: Number((v3.attainmentRate - legacy.attainmentRate).toFixed(4))
-    };
-    const warns = (v3.dataQuality && v3.dataQuality.warnings) || [];
-    const hasSeverity = (sev) => warns.some((w) => w && w.severity === sev);
-    const maxAbsCount = Math.max(
-      Math.abs(diff.rosterActiveStudentCount),
-      Math.abs(diff.validBestScoreStudentCount),
-      Math.abs(diff.attainedStudentCount)
-    );
-    const rateAbs = Math.abs(diff.attainmentRate);
-    if (hasSeverity('error')) status = 'error';
-    else if (hasSeverity('warning') || maxAbsCount > 0 || rateAbs > 0.0001) status = 'warning';
-    else status = 'ok';
-  }
-
-  return {
-    semesterId,
-    legacy: legacyError ? { error: legacyError } : legacy,
-    v3,
-    diff,
-    status,
-    enableLearningJourneyV3ReadModel: isLearningJourneyV3ReadModelEnabled()
-  };
-}
-
 module.exports = {
-  getEnglishTestSummaryV3,
-  getEnglishTestSummaryCompare
+  getEnglishTestSummaryV3
 };

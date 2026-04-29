@@ -1,3 +1,4 @@
+// LEGACY - DO NOT USE: retained only for historical English-test tracking maintenance.
 'use strict';
 
 const {

@@ -58,7 +58,6 @@ function analyzeReadModelFallback(readModel) {
       covered: ljsAttempts.length > 0,
       fallbackSources: [
         ...(flags.hasEtExamAttempts ? ['et_exam_attempts'] : []),
-        ...(flags.hasBestSkills ? ['et_semester_student_best_skills'] : []),
       ],
       reason: hasRawBestep
         ? 'BESTEP 原始匯入來源存在，若 canonical attempt 缺漏需執行 sync/migration'

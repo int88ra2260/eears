@@ -1,3 +1,4 @@
+// LEGACY - DO NOT USE: retained only for historical English-test tracking maintenance.
 /**
  * @deprecated
  * Will be removed after Learning Journey v3 fully replaces legacy tracking.

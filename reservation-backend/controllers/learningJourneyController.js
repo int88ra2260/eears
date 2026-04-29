@@ -7,18 +7,9 @@ const {
   isValidSemesterId: isValidReconciliationSemesterId
 } = require('../services/learningJourney/reconciliationService');
 const { runSync, normalizeSections } = require('../services/learningJourney/syncService');
-const {
-  getEnglishTestSummaryV3,
-  getEnglishTestSummaryCompare
-} = require('../services/learningJourney/englishTestSummaryV3Service');
-const {
-  getEnglishTestStudentsV3,
-  compareEnglishTestStudents
-} = require('../services/learningJourney/englishTestStudentsV3Service');
-const {
-  getEnglishTestStudentDetailV3,
-  compareEnglishTestStudentDetail
-} = require('../services/learningJourney/englishTestStudentDetailV3Service');
+const { getEnglishTestSummaryV3 } = require('../services/learningJourney/englishTestSummaryV3Service');
+const { getEnglishTestStudentsV3 } = require('../services/learningJourney/englishTestStudentsV3Service');
+const { getEnglishTestStudentDetailV3 } = require('../services/learningJourney/englishTestStudentDetailV3Service');
 const { getSemesterReadinessGate } = require('../services/learningJourney/readinessGateService');
 const { getRiskStudentsBySemester } = require('../services/learningJourney/learningJourneyRiskService');
 const { getLearningJourneyDataFreshness } = require('../services/learningJourney/dataFreshnessService');
@@ -35,10 +26,6 @@ const {
 } = require('../services/learningJourney/studentJourneyReportService');
 const { getGovernanceOverview } = require('../services/learningJourney/governanceOverviewService');
 const {
-  observeReadModelFallback,
-  logFallbackUsage
-} = require('../services/learningJourney/learningJourneyFallbackLogger');
-const {
   listRecentJobRuns,
   runDailyGovernanceJob,
   runReconcileSemesterJob
@@ -47,20 +34,12 @@ const { getLegacyUsageAuditReport } = require('../services/learningJourney/legac
 const learningJourneyFinal = require('../services/learningJourney/learningJourneyFinalService');
 
 function envelope(req, data, warnings = [], debug = null) {
-  const fallbackMeta = debug && Object.prototype.hasOwnProperty.call(debug, 'fallbackUsed')
-    ? {
-        fallbackUsed: !!debug.fallbackUsed,
-        fallbackSources: debug.fallbackSources || [],
-        canonicalCoverage: debug.canonicalCoverage || null
-      }
-    : {};
   return {
     success: true,
     data,
     meta: {
       traceId: req.requestId || '',
       generatedAt: new Date().toISOString(),
-      ...fallbackMeta,
       ...(debug ? { debug } : {})
     },
     warnings
@@ -79,17 +58,8 @@ async function getStudentProfile(req, res) {
       .filter((w) => w && w.severity === 'warning')
       .map((w) => w.message);
 
-    const fallback = observeReadModelFallback(result, {
-      requestId: req.requestId,
-      studentId,
-      semesterId: req.query.semesterId,
-      module: 'student_profile',
-      api: req.originalUrl
-    });
-
     return res.json(envelope(req, result, warnMessages, {
-      mode: 'aggregate_read_model',
-      ...fallback
+      mode: 'aggregate_read_model'
     }));
   } catch (error) {
     return res.status(500).json({ error: error.message, requestId: req.requestId });
@@ -106,14 +76,7 @@ async function getStudentTimeline(req, res) {
     const warnMessages = (result.dataQuality || [])
       .filter((w) => w && w.severity === 'warning')
       .map((w) => w.message);
-    const fallback = observeReadModelFallback(result, {
-      requestId: req.requestId,
-      studentId,
-      semesterId: req.query.semesterId,
-      module: 'student_timeline',
-      api: req.originalUrl
-    });
-    return res.json(envelope(req, result, warnMessages, { mode: 'aggregate_read_model', ...fallback }));
+    return res.json(envelope(req, result, warnMessages, { mode: 'aggregate_read_model' }));
   } catch (error) {
     return res.status(500).json({ error: error.message, requestId: req.requestId });
   }
@@ -163,21 +126,13 @@ async function getStudentReportHandler(req, res) {
     if (report.error) {
       return res.status(400).json({ error: report.error, requestId: req.requestId });
     }
-    const fallback = observeReadModelFallback(report.sourceProfile, {
-      requestId: req.requestId,
-      studentId,
-      semesterId: req.query.semesterId,
-      module: 'student_report',
-      api: req.originalUrl
-    });
-    report.fallbackObservability = fallback;
     const format = String(req.query.format || 'json').toLowerCase();
     if (format === 'html' || format === 'pdf') {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Content-Disposition', `inline; filename="learning-journey-${studentId}.html"`);
       return res.send(renderStudentJourneyHtml(report));
     }
-    return res.json(envelope(req, report, [], { mode: 'student_journey_report_json', ...fallback }));
+    return res.json(envelope(req, report, [], { mode: 'student_journey_report_json' }));
   } catch (error) {
     return res.status(500).json({ error: error.message, requestId: req.requestId });
   }
@@ -251,16 +206,16 @@ async function getReadModelStatusHandler(req, res) {
     const enabled = isLearningJourneyV3ReadModelEnabled();
     const data = {
       enableLearningJourneyV3ReadModel: enabled,
-      currentReadModel: enabled ? 'learning_journey_v3' : 'legacy_et_v2',
+      currentReadModel: 'learning_journey_v3',
       affectedApis: [
-        '/api/admin/english-tests/semesters/:semesterId/summary',
-        '/api/admin/english-tests/semesters/:semesterId/students',
-        '/api/admin/english-tests/semesters/:semesterId/students/:studentId'
+        '/api/admin/learning-journey/semesters/:semesterId/english-test-summary',
+        '/api/admin/learning-journey/semesters/:semesterId/english-test-students',
+        '/api/admin/learning-journey/semesters/:semesterId/english-test-students/:studentId'
       ],
-      fallbackEnabled: true,
+      legacyBridgeEnabled: false,
       warnings: enabled
-        ? ['v3 read model enabled: on error, APIs fallback to legacy_et_v2']
-        : ['v3 read model disabled: APIs currently read legacy_et_v2']
+        ? ['Learning Journey V3 read model is enabled. Legacy bridge is disabled.']
+        : ['Learning Journey V3 APIs remain mounted, but the legacy admin english-tests APIs are disabled.']
     };
     return res.json(
       envelope(req, data, [], {
@@ -389,31 +344,7 @@ async function getSemesterDashboard(req, res) {
     const warnMessages = (result.dataQuality || [])
       .filter((w) => w && w.severity === 'warning')
       .map((w) => w.message);
-    const fallback = {
-      fallbackUsed: true,
-      fallbackSources: [
-        'et_enrollment_snapshots',
-        'english_test_registrations',
-        'bestep_exam_scores',
-        'bestep_attendance',
-        'et_semester_student_best_skills'
-      ],
-      canonicalCoverage: {
-        sections: [],
-        message: '此 dashboard 仍是過渡聚合摘要；正式 canonical coverage 請以 governance overview 為準。'
-      }
-    };
-    logFallbackUsage({
-      requestId: req.requestId,
-      semesterId,
-      module: 'semester_dashboard',
-      api: req.originalUrl,
-      canonicalSource: 'student_semester_profiles/exam_attempts/activity_participations',
-      fallbackSource: fallback.fallbackSources.join(','),
-      reason: 'semester dashboard 仍使用過渡 aggregate read model 摘要',
-      severity: 'warning'
-    });
-    return res.json(envelope(req, result, warnMessages, { mode: 'aggregate_read_model', ...fallback }));
+    return res.json(envelope(req, result, warnMessages, { mode: 'aggregate_read_model' }));
   } catch (error) {
     return res.status(500).json({ error: error.message, requestId: req.requestId });
   }
@@ -625,27 +556,6 @@ async function getEnglishTestSummaryV3Handler(req, res) {
   }
 }
 
-async function getEnglishTestSummaryCompareHandler(req, res) {
-  try {
-    const semesterId = req.params.semesterId ? String(req.params.semesterId).trim() : '';
-    if (!semesterId) {
-      return res.status(400).json({ error: 'semesterId 為必填', requestId: req.requestId });
-    }
-    const data = await getEnglishTestSummaryCompare(semesterId);
-    const warnMessages = ((data.v3 && data.v3.dataQuality && data.v3.dataQuality.warnings) || [])
-      .filter((w) => w && w.severity === 'warning')
-      .map((w) => w.message);
-    return res.json(
-      envelope(req, data, warnMessages, {
-        mode: 'english_test_summary_compare',
-        enableLearningJourneyV3ReadModel: isLearningJourneyV3ReadModelEnabled()
-      })
-    );
-  } catch (error) {
-    return res.status(500).json({ error: error.message, requestId: req.requestId });
-  }
-}
-
 async function getEnglishTestStudentsV3ListHandler(req, res) {
   try {
     const semesterId = req.params.semesterId ? String(req.params.semesterId).trim() : '';
@@ -680,32 +590,6 @@ async function getEnglishTestStudentsV3ListHandler(req, res) {
   }
 }
 
-async function getEnglishTestStudentsCompareHandler(req, res) {
-  try {
-    const semesterId = req.params.semesterId ? String(req.params.semesterId).trim() : '';
-    if (!semesterId) {
-      return res.status(400).json({ error: 'semesterId 為必填', requestId: req.requestId });
-    }
-    if (!isValidReconciliationSemesterId(semesterId)) {
-      return res.status(400).json({ error: 'semesterId 格式不正確', requestId: req.requestId });
-    }
-    const data = await compareEnglishTestStudents(semesterId);
-    const warnMessages = [];
-    if (data.status === 'error') {
-      if (data.legacyError) warnMessages.push(`legacy: ${data.legacyError}`);
-      if (data.v3Error) warnMessages.push(`v3: ${data.v3Error}`);
-    }
-    return res.json(
-      envelope(req, data, warnMessages, {
-        mode: 'english_test_students_compare',
-        enableLearningJourneyV3ReadModel: isLearningJourneyV3ReadModelEnabled()
-      })
-    );
-  } catch (error) {
-    return res.status(500).json({ error: error.message, requestId: req.requestId });
-  }
-}
-
 async function getEnglishTestStudentDetailV3Handler(req, res) {
   try {
     const semesterId = req.params.semesterId ? String(req.params.semesterId).trim() : '';
@@ -717,9 +601,6 @@ async function getEnglishTestStudentDetailV3Handler(req, res) {
       return res.status(400).json({ error: 'studentId 為必填', requestId: req.requestId });
     }
     const data = await getEnglishTestStudentDetailV3(semesterId, studentId);
-    if (data.error === 'NO_STUDENT') {
-      return res.status(404).json({ error: '查無 LJS 學生', requestId: req.requestId });
-    }
     if (data.error === 'semesterId 格式不正確' || data.error === 'studentId 為必填') {
       return res.status(400).json({ error: data.error, requestId: req.requestId });
     }
@@ -732,36 +613,6 @@ async function getEnglishTestStudentDetailV3Handler(req, res) {
     return res.json(
       envelope(req, data, warnMessages, {
         mode: 'english_test_student_detail_v3',
-        enableLearningJourneyV3ReadModel: isLearningJourneyV3ReadModelEnabled()
-      })
-    );
-  } catch (error) {
-    return res.status(500).json({ error: error.message, requestId: req.requestId });
-  }
-}
-
-async function getEnglishTestStudentDetailCompareHandler(req, res) {
-  try {
-    const semesterId = req.params.semesterId ? String(req.params.semesterId).trim() : '';
-    const studentId = normalizeStudentId(req.params.studentId);
-    if (!semesterId) {
-      return res.status(400).json({ error: 'semesterId 為必填', requestId: req.requestId });
-    }
-    if (!studentId) {
-      return res.status(400).json({ error: 'studentId 為必填', requestId: req.requestId });
-    }
-    if (!isValidReconciliationSemesterId(semesterId)) {
-      return res.status(400).json({ error: 'semesterId 格式不正確', requestId: req.requestId });
-    }
-    const data = await compareEnglishTestStudentDetail(semesterId, studentId);
-    const warnMessages = [];
-    if (data.status === 'error') {
-      if (data.legacyError) warnMessages.push(`legacy: ${data.legacyError}`);
-      if (data.v3Error) warnMessages.push(`v3: ${data.v3Error}`);
-    }
-    return res.json(
-      envelope(req, data, warnMessages, {
-        mode: 'english_test_student_detail_compare',
         enableLearningJourneyV3ReadModel: isLearningJourneyV3ReadModelEnabled()
       })
     );
@@ -924,11 +775,8 @@ module.exports = {
   postRunDailyGovernanceJob,
   postRunReconcileSemesterJob,
   getEnglishTestSummaryV3Handler,
-  getEnglishTestSummaryCompareHandler,
   getEnglishTestStudentsV3ListHandler,
-  getEnglishTestStudentsCompareHandler,
   getEnglishTestStudentDetailV3Handler,
-  getEnglishTestStudentDetailCompareHandler,
   getRiskStudentsHandler,
   postSync,
   postCourseImportDryRun,

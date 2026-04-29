@@ -253,30 +253,6 @@ export async function getLearningJourneyRiskStudents(token, semesterId) {
   return parseEnvelope(res);
 }
 
-export async function getLearningJourneyEnglishTestStudentsCompare(token, semesterId) {
-  const res = await fetchClient(
-    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/english-test-students/compare`,
-    { headers: authHeaders(token) }
-  );
-  return parseEnvelope(res);
-}
-
-export async function getLearningJourneyEnglishTestStudentDetailCompare(token, semesterId, studentId) {
-  const res = await fetchClient(
-    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/english-test-students/${encodeURIComponent(studentId)}/compare`,
-    { headers: authHeaders(token) }
-  );
-  return parseEnvelope(res);
-}
-
-export async function getLearningJourneyEnglishTestSummaryCompare(token, semesterId) {
-  const res = await fetchClient(
-    `${BASE_URL}/semesters/${encodeURIComponent(semesterId)}/english-test-summary/compare`,
-    { headers: authHeaders(token) }
-  );
-  return parseEnvelope(res);
-}
-
 export async function postLearningJourneySync(token, body) {
   const res = await fetchClient(`${BASE_URL}/admin/sync`, {
     method: 'POST',

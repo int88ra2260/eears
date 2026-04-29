@@ -14,7 +14,7 @@ import {
 } from '../../services/learningJourneyApi';
 
 const EMPTY = '—';
-const HISTORY_KEY = 'english-test-v2-history';
+const HISTORY_KEY = 'learning-journey-v3-history';
 const TAB_IDS = ['student', 'overview', 'students', 'diagnostics'];
 const SKILL_LABELS = {
   listening: '聽力',

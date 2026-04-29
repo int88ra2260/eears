@@ -5,7 +5,6 @@ const {
   EtEnrollmentSnapshot,
   EtExamAttempt,
   EtExamAttemptSkillScore,
-  EtSemesterStudentBestSkill,
   EnglishTestRegistration,
   BestepExamScore,
   BestepAttendance,
@@ -82,18 +81,6 @@ function isoOrNull(d) {
   }
 }
 
-function buildBestSkillsBySemester(rows) {
-  const bySem = {};
-  for (const r of rows || []) {
-    const j = toPlain(r);
-    const sid = j.semesterId;
-    if (!sid) continue;
-    if (!bySem[sid]) bySem[sid] = [];
-    bySem[sid].push(j);
-  }
-  return bySem;
-}
-
 /**
  * 統一 timeline 事件（Phase 5-6）
  * 欄位：id, type, title, date, semesterId, source, status, payload
@@ -105,7 +92,6 @@ function buildUnifiedTimeline(studentId, ctx) {
     etAttempts = [],
     bestepScores = [],
     bestepAttendance = [],
-    bestSkillRows = [],
     reservations = [],
     activityParticipations = [],
     ljsExamAttempts = [],
@@ -182,22 +168,6 @@ function buildUnifiedTimeline(studentId, ctx) {
       source: 'bestep_attendance',
       status: j.attended ? 'attended' : 'absent',
       payload: { attendanceId: j.id, examType: j.examType, absentReason: j.absentReason }
-    });
-  }
-
-  const bestSem = new Set((bestSkillRows || []).map((r) => toPlain(r).semesterId).filter(Boolean));
-  for (const sem of bestSem) {
-    const rows = (bestSkillRows || []).filter((r) => toPlain(r).semesterId === sem);
-    const first = rows[0] ? toPlain(rows[0]) : null;
-    events.push({
-      id: `best_score-${studentId}-${sem}`,
-      type: 'best_score',
-      title: `學期最佳四向彙整（${sem}）`,
-      date: isoOrNull(first && (first.updatedAt || first.computedAt || first.createdAt)),
-      semesterId: sem,
-      source: 'et_semester_student_best_skills',
-      status: 'computed',
-      payload: { semesterId: sem, rows: rows.map(toPlain) }
     });
   }
 
@@ -368,13 +338,6 @@ async function getAggregatedStudentReadModel(rawStudentId) {
       []
     );
 
-    const bestSkillRows = await safeQuery(
-      'et_semester_student_best_skills',
-      out.dataQuality,
-      () => EtSemesterStudentBestSkill.findAll({ where: { studentId } }),
-      []
-    );
-
     const ljsStudent = await safeQuery(
       'students_ljs',
       out.dataQuality,
@@ -423,7 +386,7 @@ async function getAggregatedStudentReadModel(rawStudentId) {
         hasEtExamAttempts: etAttempts.length > 0,
         hasBestepScores: bestScores.length > 0,
         hasBestepAttendance: bestAtt.length > 0,
-        hasBestSkills: bestSkillRows.length > 0,
+        hasBestSkills: false,
         hasReservations: reservations.length > 0,
         hasActivityParticipations: activityParticipations.length > 0,
         hasLjsStudent: !!ljsStudent,
@@ -438,7 +401,7 @@ async function getAggregatedStudentReadModel(rawStudentId) {
       regs.map((r) => r.semester),
       bestScores.map((b) => b.semester),
       bestAtt.map((b) => b.semester),
-      bestSkillRows.map((b) => b.semesterId)
+      []
     );
 
     out.semesters = semIds.map((semesterId) => {
@@ -451,7 +414,7 @@ async function getAggregatedStudentReadModel(rawStudentId) {
 
     out.examRegistrations = regs.map(toPlain);
     out.examAttempts = etAttempts;
-    out.bestSkills = buildBestSkillsBySemester(bestSkillRows);
+    out.bestSkills = {};
     const apPlain = activityParticipations.map(toPlain);
     out.activities = [
       ...reservations.map((row) => {
@@ -514,7 +477,6 @@ async function getAggregatedStudentReadModel(rawStudentId) {
       etAttempts,
       bestepScores,
       bestepAttendance,
-      bestSkillRows,
       reservations,
       activityParticipations,
       ljsExamAttempts: ljsAttempts,
@@ -531,7 +493,6 @@ async function getAggregatedStudentReadModel(rawStudentId) {
       reservations.length > 0 ||
       activityParticipations.length > 0 ||
       !!ljsStudent ||
-      bestSkillRows.length > 0 ||
       courseEnrollments.length > 0;
 
     if (!hasAny) {
@@ -542,7 +503,6 @@ async function getAggregatedStudentReadModel(rawStudentId) {
       regs.length > 0 ||
       etAttempts.length > 0 ||
       bestScores.length > 0 ||
-      bestSkillRows.length > 0 ||
       bestAtt.length > 0;
     if (hasAny && !hasExam) {
       pushQuality(out.dataQuality, 'NO_EXAM_AGGREGATE', '有學籍／活動等紀錄，但尚無英檢／BESTEP／長期追蹤成績相關資料', 'info');
@@ -616,21 +576,6 @@ async function getAggregatedSemesterDashboard(semesterIdRaw) {
       0
     );
 
-    const bssRows = await safeQuery(
-      'et_semester_student_best_skills',
-      out.dataQuality,
-      () =>
-        EtSemesterStudentBestSkill.findAll({
-          where: { semesterId },
-          attributes: ['studentId']
-        }),
-      []
-    );
-
-    const bestSkillStudentDistinct = new Set(
-      (bssRows || []).map((r) => String(r.studentId || '').trim()).filter(Boolean)
-    ).size;
-
     out.semesters = [
       {
         semesterId,
@@ -638,7 +583,7 @@ async function getAggregatedSemesterDashboard(semesterIdRaw) {
         englishRegistrationCount: regCount,
         bestepScoreRowCount: bestepScoreCount,
         bestepAttendanceRowCount: bestepAttCount,
-        etBestSkillStudentDistinct: bestSkillStudentDistinct
+        etBestSkillStudentDistinct: 0
       }
     ];
 

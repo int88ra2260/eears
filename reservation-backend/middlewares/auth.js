@@ -324,6 +324,14 @@ function adminOrExecutiveMiddleware(req, res, next) {
   return requireAdminRights(req, res, next);
 }
 
+function adminOrTeacherMiddleware(req, res, next) {
+  const user = req.user || {};
+  const role = String(user.role || '').toLowerCase();
+  if (role === 'admin') return next();
+  if (role === 'teacher') return next();
+  return sendForbidden(res, '需要管理員或教師身分');
+}
+
 /** 語意化別名：系統管理員限定（admin only） */
 function adminOnlyMiddleware(req, res, next) {
   return requireAdmin(req, res, next);
@@ -526,6 +534,7 @@ module.exports = {
   requireAdminRights,
   adminOnlyMiddleware,
   adminOrExecutiveMiddleware,
+  adminOrTeacherMiddleware,
   requireTeacher,
   requireScope,
   requireAnyScope,

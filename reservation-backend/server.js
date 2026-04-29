@@ -34,8 +34,6 @@ const adminRouter = require('./routes/adminRouter');
 const englishTestRegistrationRouter = require('./routes/englishTestRegistrationRouter');
 const learningPartnerRouter = require('./routes/learningPartnerRouter');
 const bestepRouter = require('./routes/bestepRouter');
-const englishTestTrackingRouter = require('./routes/englishTestTrackingRouter');
-const englishTestsRouter = require('./routes/englishTestsRouter');
 const statsRouter = require('./routes/statsRouter');
 const analyticsRouter = require('./routes/analyticsRouter');
 const reportsRouter = require('./routes/reportsRouter');
@@ -45,6 +43,7 @@ const healthRouter = require('./routes/healthRouter');
 const notificationsRouter = require('./routes/notificationsRouter');
 const internalDiagnosticsRouter = require('./routes/internalDiagnosticsRouter');
 const learningJourneyRouter = require('./routes/learningJourneyRouter');
+const learningJourneyV3Router = require('./routes/learningJourneyV3Router');
 
 const { errorHandler } = require('./middlewares/errorHandler');
 const { requestLogger } = require('./middlewares/requestLogger');
@@ -92,10 +91,12 @@ app.use('/api', adminRouter);
 app.use('/api', englishTestRegistrationRouter);
 app.use('/api', learningPartnerRouter);
 app.use('/api/admin/bestep', bestepRouter);
-app.use('/api/english-tests', englishTestTrackingRouter);
-app.use('/api/admin/english-tests', englishTestsRouter);
+// LEGACY - DO NOT USE:
+// Learning Journey V3 no longer exposes legacy English-test tracking APIs.
+// Keep route modules on disk for Phase 2 removal, but do not mount them.
 app.use('/api/admin/learning-journey', learningJourneyRouter);
 app.use('/api/v3/learning-journey', learningJourneyRouter);
+app.use('/api/admin/learning-journey-v3', learningJourneyV3Router);
 app.use('/api/stats', statsRouter);
 app.use('/api', analyticsRouter);
 app.use('/api', reportsRouter);
